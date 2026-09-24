@@ -1,0 +1,28 @@
+{
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "warn"
+  },
+  "plugins": ["typescript", "import", "oxc"],
+  "rules": {
+    "eslint/no-shadow": "off",
+    "typescript/consistent-type-definitions": ["error", "type"],
+    "curly": "error",
+    "no-case-declarations": "error",
+    "no-cond-assign": ["error", "always"],
+    "no-fallthrough": ["error", { "allowEmptyCase": true }],
+    "no-multi-assign": "error",
+    "no-nested-ternary": "error",
+    "no-sequences": ["error", { "allowInParentheses": false }],
+    "import/no-duplicates": ["error", { "preferInline": true }]
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"],
+      "rules": {
+        "eslint/no-unused-vars": "warn"
+      }
+    }
+  ]
+}
