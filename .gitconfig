@@ -1,0 +1,41 @@
+[init]
+	defaultBranch = main
+
+[core]
+	excludesFile = ~/.config/git/ignore
+	whitespace = trailing-space,space-before-tab
+
+[pull]
+	ff = only
+
+[fetch]
+	prune = true
+
+[push]
+	default = simple
+	autoSetupRemote = true
+
+[merge]
+	conflictStyle = zdiff3
+
+[diff]
+	algorithm = histogram
+	colorMoved = default
+
+[rerere]
+	enabled = true
+
+[rebase]
+	autoStash = true
+
+[commit]
+	verbose = true
+
+[status]
+	showStash = true
+
+[branch]
+	sort = -committerdate
+
+[tag]
+	sort = version:refname
