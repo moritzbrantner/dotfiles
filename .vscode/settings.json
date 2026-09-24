@@ -1,16 +1,36 @@
 {
+  "breadcrumbs.enabled": true,
+  "editor.minimap.enabled": false,
   "editor.rulers": [100],
+  "editor.stickyScroll.enabled": true,
+  "editor.inlayHints.enabled": "offUnlessPressed",
+  "editor.renderWhitespace": "selection",
+  "editor.renderControlCharacters": true,
+  "editor.bracketPairColorization.enabled": true,
+  "editor.guides.bracketPairs": "active",
   "editor.formatOnSave": false,
   "editor.formatOnSaveMode": "file",
   "editor.codeActionsOnSave": {
     "source.format.oxc": "always",
     "source.fixAll.oxc": "always"
   },
+  "diffEditor.hideUnchangedRegions.enabled": true,
+  "diffEditor.ignoreTrimWhitespace": false,
+  "files.autoSave": "off",
   "files.eol": "\n",
   "files.insertFinalNewline": true,
   "files.trimFinalNewlines": true,
   "files.trimTrailingWhitespace": true,
+  "git.autofetch": false,
+  "git.confirmSync": true,
+  "git.enableSmartCommit": false,
+  "git.pruneOnFetch": true,
+  "scm.alwaysShowRepositories": true,
+  "javascript.referencesCodeLens.enabled": true,
+  "javascript.implementationsCodeLens.enabled": true,
   "javascript.updateImportsOnFileMove.enabled": "always",
+  "typescript.referencesCodeLens.enabled": true,
+  "typescript.implementationsCodeLens.enabled": true,
   "typescript.updateImportsOnFileMove.enabled": "always",
   "[javascript]": {
     "editor.defaultFormatter": "oxc.oxc-vscode"
@@ -31,6 +51,7 @@
     "editor.defaultFormatter": "oxc.oxc-vscode"
   },
   "[markdown]": {
+    "editor.wordWrap": "on",
     "files.trimTrailingWhitespace": false
   },
   "[rust]": {
