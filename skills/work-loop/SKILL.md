@@ -31,6 +31,7 @@ There are no claims, queue files, roles, status labels, triage passes or per-rep
 5. **Dependencies in other repositories.** When the work needs something another repository owns, do not change both from one task and do not coordinate across repositories. Create an issue there (`gh issue create -R moritzbrantner/<other>`) describing the missing capability and the consumer, add `Blocked by moritzbrantner/<other>#<m>` to this issue, and continue with work that does not need it or move on. The new issue is ordinary work for a later iteration.
 6. **Validate.** Run the validation the repository documents for the touched scope. CI is the full gate; a red check blocks merge, so fix it rather than arguing with it.
 7. **Update GitHub.** Mark the PR ready, wait for checks (`gh pr checks <n> --watch`), fix failures and answer every review finding, then merge per the repository's convention (default `gh pr merge <n> --merge --delete-branch`). If a merge is refused, leave the PR open and report it. Remove the worktree afterwards.
+   - Reviews converge: batch fixes into one push, and request a re-review (`@codex review`) at most once per PR, after substantive fixes. Findings that arrive after that are answered in their thread; fix only real bugs, and list the rest as follow-ups in the PR description instead of starting another round.
 8. **Repeat** from step 1. Keep going until nothing is actionable; one run is not one issue.
 
 ## When nothing is actionable
