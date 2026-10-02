@@ -18,10 +18,11 @@ There are no claims, queue files, roles, status labels, triage passes or per-rep
    - it is not labelled `needs-decision`;
    - it is not a bot issue (Renovate's Dependency Dashboard and similar);
    - every issue it names as `Blocked by …` (or its native GitHub dependencies) is closed;
-   - no open PR is linked to it (`gh issue view <n> -R <repo> --json closedByPullRequestsReferences`), since that PR is the work in flight.
+   - no open PR is linked to it, since that PR is the work in flight:
+     `gh api graphql -f query='{repository(owner:"moritzbrantner",name:"<repo>"){issue(number:<n>){closedByPullRequestsReferences(first:5,includeClosedPrs:false){nodes{number}}}}}'`.
 
    Among those, prefer issues that block other issues, then bugs, then whatever continues recent work. Use judgement; do not build a ranking. Labels such as `prd`, `ready-for-agent` or `enhancement` are information, not gates.
-3. **Understand it.** Read the issue, its comments, the repository's `AGENTS.md`/`CLAUDE.md` and the code it touches. If the issue is already done, comment with the evidence and close it. If it is underspecified, settle what the code and docs settle and record the choice in the PR. If it needs the owner's product, scope or architecture decision, ask on the issue (one concrete question with options and your recommendation), add `needs-decision` and pick another issue.
+3. **Understand it.** Read the issue, its comments, the repository's `AGENTS.md`/`CLAUDE.md` and the code it touches. If the issue is already done, comment with the evidence and close it. If it is underspecified, settle what the code and docs settle and record the choice in the PR. If it needs the owner's product, scope or architecture decision, ask on the issue (one concrete question with options and your recommendation), add `needs-decision` (create the label first if the repository lacks it: `gh label create needs-decision -R <repo> --color d93f0b --description "Waiting on the owner's decision"`) and pick another issue.
 4. **Work in the repository.**
    - The checkout lives at `~/privat/<repo>`; clone it with `gh repo clone moritzbrantner/<repo>` if it is missing.
    - Never edit the user's checked-out branch or a dirty tree. Work in a worktree from the fresh default branch: `git fetch origin && git worktree add ../<repo>-wt/<n> -b agent/<n>-<topic> origin/<default>`.
