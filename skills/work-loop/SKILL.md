@@ -12,7 +12,8 @@ There are no claims, queue files, roles, status labels, triage passes or per-rep
 ## One iteration
 
 1. **Scan.**
-   - Open PRs of yours first, because finishing beats starting: `gh search prs --owner moritzbrantner --state open --author @me --json repository,number,title,url`. A PR with a failed check, an unanswered review finding or a merge conflict is the next piece of work.
+   - Open PRs of yours first, because finishing beats starting: `gh search prs --owner moritzbrantner --state open --author @me --limit 1000 --json repository,number,title,url`. A PR with a failed check, an unanswered review finding or a merge conflict is the next piece of work.
+   - Close a PR that is superseded (its work is already on the default branch or replaced by another PR) with the reason in the closing comment.
    - Then open issues: `gh search issues --owner moritzbrantner --state open --limit 1000 --json repository,number,title,labels,updatedAt`.
 2. **Pick one actionable issue.** An issue is actionable when:
    - it is not labelled `needs-decision`;
@@ -30,7 +31,9 @@ There are no claims, queue files, roles, status labels, triage passes or per-rep
    - Push early and open a draft PR with `Closes #<n>`. The open PR is the only signal that the issue is taken.
 5. **Dependencies in other repositories.** When the work needs something another repository owns, do not change both from one task and do not coordinate across repositories. Create an issue there (`gh issue create -R moritzbrantner/<other>`) describing the missing capability and the consumer, add `Blocked by moritzbrantner/<other>#<m>` to this issue, and continue with work that does not need it or move on. The new issue is ordinary work for a later iteration.
 6. **Validate.** Run the validation the repository documents for the touched scope. CI is the full gate; a red check blocks merge, so fix it rather than arguing with it.
-7. **Update GitHub.** Mark the PR ready, wait for checks (`gh pr checks <n> --watch`), fix failures and answer every review finding, then merge per the repository's convention (default `gh pr merge <n> --merge --delete-branch`). If a merge is refused, leave the PR open and report it. Remove the worktree afterwards.
+7. **Update GitHub.** Mark the PR ready, wait for checks (`gh pr checks <n> --watch`), fix failures and answer every review finding, then merge per the repository's convention (default `gh pr merge <n> --merge --delete-branch`). If a merge is refused, leave the PR open and report it.
+   - Stacked PRs: before merging a PR that is the base of another open PR, retarget that child (`gh pr edit <child> --base <new base>`); deleting the merged branch otherwise closes the child.
+   - Clean up when a PR is merged or closed: `git worktree remove ../<repo>-wt/<n>` and `git branch -D <branch>`. Do the same during the scan for any `~/privat/<repo>-wt/*` worktree whose PR is already merged or closed. A worktree with uncommitted changes is not removed; report it instead.
    - Reviews converge: batch fixes into one push, and request a re-review (`@codex review`) at most once per PR, after substantive fixes. Findings that arrive after that are answered in their thread; fix only real bugs, and list the rest as follow-ups in the PR description instead of starting another round.
 8. **Repeat** from step 1. Keep going until nothing is actionable; one run is not one issue.
 
