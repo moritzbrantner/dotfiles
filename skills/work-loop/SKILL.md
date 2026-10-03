@@ -19,7 +19,7 @@ There are no claims, queue files, roles, status labels, triage passes or per-rep
    - it is not labelled `needs-decision`;
    - it is not a bot issue (Renovate's Dependency Dashboard and similar);
    - every issue it names as `Blocked by …` (or its native GitHub dependencies) is closed;
-   - no open PR is linked to it, since that PR is the work in flight:
+   - no open PR closes it, since that closing PR is the work in flight:
      `gh api graphql -f query='{repository(owner:"moritzbrantner",name:"<repo>"){issue(number:<n>){closedByPullRequestsReferences(first:5,includeClosedPrs:false){nodes{number}}}}}'`.
 
    Among those, prefer issues that block other issues, then bugs, then whatever continues recent work. Use judgement; do not build a ranking. Labels such as `prd`, `ready-for-agent` or `enhancement` are information, not gates.
