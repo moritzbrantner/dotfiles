@@ -48,7 +48,7 @@ GitHub issues and pull requests are the only work state. Repositories keep their
 
 ### Work-loop mental model
 
-The skill file is the operational definition; this diagram is the human-readable control flow. A current issue should produce one coherent PR. If implementation reveals additional work that can be separated cleanly, create focused follow-up issues rather than expanding the PR indefinitely.
+The skill file is the operational definition; this diagram is the human-readable control flow. A current issue should produce one coherent PR. If the selected issue contains separable remainder beyond one coherent PR, create focused follow-up issues for that remainder rather than expanding the PR indefinitely. Unrelated findings are not added to the work queue.
 
 ```mermaid
 flowchart TD
@@ -64,7 +64,7 @@ flowchart TD
     ISSUE -->|Yes| IMPLEMENT[Implement coherent issue scope]:::yes
     ISSUE -->|No| DECISION{Owner decision needed?}:::question
 
-    IMPLEMENT --> EXTRA{Separable work discovered?}:::question
+    IMPLEMENT --> EXTRA{Selected issue has separable remainder?}:::question
 
     EXTRA -->|Yes| FOLLOWUP[Create focused follow-up issue]:::yes
     EXTRA -->|No| VERIFY
