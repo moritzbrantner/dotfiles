@@ -177,6 +177,18 @@ test("merge method follows repository settings", () => {
         allow_squash_merge: true,
         allow_rebase_merge: true,
       },
+      [],
+      { required_linear_history: { enabled: true } },
+    ),
+    "--squash",
+  );
+  assert.equal(
+    selectMergeMethod(
+      {
+        allow_merge_commit: true,
+        allow_squash_merge: true,
+        allow_rebase_merge: true,
+      },
       [
         {
           type: "pull_request",
