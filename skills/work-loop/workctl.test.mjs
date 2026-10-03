@@ -1,0 +1,103 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  checkState,
+  classify,
+  codexReview,
+  parseTarget,
+  unansweredCodexFindings,
+} from "./workctl.mjs";
+
+test("targets", () => {
+  assert.deepEqual(parseTarget("ui#66"), {
+    owner: "moritzbrantner",
+    repo: "ui",
+    number: 66,
+  });
+  assert.deepEqual(parseTarget("x/y#12"), { owner: "x", repo: "y", number: 12 });
+  assert.deepEqual(parseTarget("https://github.com/x/y/pull/12"), {
+    owner: "x",
+    repo: "y",
+    number: 12,
+  });
+});
+
+test("CI states", () => {
+  assert.equal(checkState([], []).state, "green");
+  assert.equal(checkState([{ name: "ci", status: "in_progress" }], []).state, "pending");
+  assert.equal(
+    checkState([{ name: "ci", status: "completed", conclusion: "failure" }], []).state,
+    "failed",
+  );
+  assert.equal(
+    checkState([{ name: "ci", status: "completed", conclusion: "neutral" }], []).state,
+    "green",
+  );
+});
+
+test("Codex review must complete on current head", () => {
+  const user = { login: "chatgpt-codex-connector[bot]" };
+  const completed = {
+    user,
+    body:
+      "<!-- codex-pull-request-review-summary -->\n" +
+      "| 📝 **Code Review** | ✅ **Completed** now | `ef9ecb8` | Manual |",
+  };
+
+  assert.equal(codexReview([completed], "ef9ecb8b76ff").state, "complete");
+  assert.equal(codexReview([completed], "aaaaaaaa").state, "pending");
+  assert.equal(
+    codexReview(
+      [{ ...completed, body: completed.body.replace("Completed", "Running") }],
+      "ef9ecb8b76ff",
+    ).state,
+    "pending",
+  );
+});
+
+test("Codex finding is answered by a non-Codex reply", () => {
+  const codex = { login: "chatgpt-codex-connector[bot]" };
+  assert.equal(
+    unansweredCodexFindings([{ id: 1, in_reply_to_id: null, user: codex }]),
+    1,
+  );
+  assert.equal(
+    unansweredCodexFindings([
+      { id: 1, in_reply_to_id: null, user: codex },
+      { id: 2, in_reply_to_id: 1, user: { login: "owner" } },
+    ]),
+    0,
+  );
+});
+
+test("PR classification", () => {
+  const ready = {
+    pr: {
+      state: "open",
+      draft: false,
+      mergeable: true,
+      mergeable_state: "clean",
+    },
+    checks: { state: "green", failed: [], pending: [] },
+    review: { state: "complete" },
+    unanswered: 0,
+  };
+
+  assert.equal(classify(ready).state, "ready");
+  assert.equal(
+    classify({
+      ...ready,
+      checks: { state: "pending", failed: [], pending: ["ci"] },
+    }).state,
+    "waiting",
+  );
+  assert.equal(classify({ ...ready, unanswered: 1 }).state, "broken");
+  assert.equal(
+    classify({
+      ...ready,
+      pr: { ...ready.pr, mergeable: false, mergeable_state: "dirty" },
+    }).state,
+    "broken",
+  );
+});
