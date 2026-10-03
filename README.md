@@ -48,11 +48,12 @@ GitHub issues and pull requests are the only work state. Repositories keep their
 Install the skills for Claude Code and Codex by symlinking them:
 
 ```bash
-mkdir -p ~/.claude/skills ~/.agents/skills
+mkdir -p ~/.claude/skills ~/.agents/skills ~/.local/share/coding-agent
 for s in skills/*/; do
   ln -sfn "$PWD/$s" ~/.claude/skills/"$(basename "$s")"
   ln -sfn "$PWD/$s" ~/.agents/skills/"$(basename "$s")"
 done
+ln -sfn "$PWD/skills/work-loop/workctl.mjs" ~/.local/share/coding-agent/workctl.mjs
 ```
 
 ## VS Code
