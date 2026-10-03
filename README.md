@@ -40,7 +40,7 @@ Copy or symlink these into a project when appropriate, then keep project-specifi
 
 All coding-agent work runs through one global loop over GitHub issues:
 
-- `skills/work-loop` — scan open issues across the repositories, pick an actionable one, work in its repository by that repository's `AGENTS.md`, validate, update GitHub, repeat. A dependency on another repository becomes an issue there.
+- `skills/work-loop` — scan open issues across the repositories, pick an actionable one, work in its repository by that repository's `AGENTS.md`, validate, update GitHub, repeat. Its `workctl.mjs` helper deterministically reports PR readiness and guards merges. A dependency on another repository becomes an issue there.
 - `skills/unblock` — when nothing is actionable, ask the owner about `needs-decision` issues one question at a time and record each answer on the issue.
 
 GitHub issues and pull requests are the only work state. Repositories keep their own instructions, conventions, tests and architecture; they do not define their own agent loops, claims, queues or status labels.
@@ -96,11 +96,12 @@ flowchart TD
 Install the skills for Claude Code and Codex by symlinking them:
 
 ```bash
-mkdir -p ~/.claude/skills ~/.agents/skills
+mkdir -p ~/.claude/skills ~/.agents/skills ~/.local/share/coding-agent
 for s in skills/*/; do
   ln -sfn "$PWD/$s" ~/.claude/skills/"$(basename "$s")"
   ln -sfn "$PWD/$s" ~/.agents/skills/"$(basename "$s")"
 done
+ln -sfn "$PWD/skills/work-loop/workctl.mjs" ~/.local/share/coding-agent/workctl.mjs
 ```
 
 ## VS Code
@@ -118,7 +119,7 @@ Run:
 node scripts/check.mjs
 ```
 
-The check parses all JSON configuration, validates the Git config, syntax-checks the ESLint module, and runs `git diff --check` over unstaged and staged changes.
+The check parses all JSON configuration, validates the Git config, syntax-checks the ESLint module, runs the work-loop helper tests, and runs `git diff --check` over unstaged and staged changes.
 
 ## Convention policy
 

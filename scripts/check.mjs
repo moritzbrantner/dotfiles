@@ -15,6 +15,7 @@ for (const path of jsonFiles) {
 for (const [command, args] of [
   ["git", ["config", "--file", ".gitconfig", "--list"]],
   ["node", ["--check", "eslint.config.mjs"]],
+  ["node", ["--test", "skills/work-loop/workctl.test.mjs"]],
   ["git", ["diff", "--check"]],
   ["git", ["diff", "--cached", "--check"]],
 ]) {
