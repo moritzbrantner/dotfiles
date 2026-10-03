@@ -260,7 +260,14 @@ export function selectMergeMethod(repository, rules = [], protection = null) {
   throw new Error("repository and target-branch rules allow no supported PR merge method");
 }
 
-function mergeMethod(owner, repo, base) {
+export function mergePolicy(repository, rules = [], protection = null) {
+  return {
+    method: selectMergeMethod(repository, rules, protection),
+    deleteBranch: !rules.some((rule) => rule.type === "merge_queue"),
+  };
+}
+
+function remoteMergePolicy(owner, repo, base) {
   const repository = api(`repos/${owner}/${repo}`);
   const encodedBase = encodeURIComponent(base);
   const rules = pageArrays(
@@ -269,7 +276,7 @@ function mergeMethod(owner, repo, base) {
   const protection = optionalApi(
     `repos/${owner}/${repo}/branches/${encodedBase}/protection`,
   );
-  return selectMergeMethod(repository, rules, protection);
+  return mergePolicy(repository, rules, protection);
 }
 
 function merge(target) {
@@ -280,17 +287,21 @@ function merge(target) {
     return;
   }
 
-  gh([
+  const policy = remoteMergePolicy(status.owner, status.repo, status.pr.base.ref);
+  const args = [
     "pr",
     "merge",
     String(status.number),
     "-R",
     `${status.owner}/${status.repo}`,
-    mergeMethod(status.owner, status.repo, status.pr.base.ref),
-    "--delete-branch",
+    policy.method,
     "--match-head-commit",
     status.head,
-  ]);
+  ];
+  if (policy.deleteBranch) {
+    args.push("--delete-branch");
+  }
+  gh(args);
   const merged = api(`repos/${status.owner}/${status.repo}/pulls/${status.number}`);
   process.stdout.write(
     `${JSON.stringify({
