@@ -1,5 +1,4 @@
 import {
-  existsSync,
   lstatSync,
   mkdirSync,
   readlinkSync,
@@ -28,8 +27,9 @@ for (const [sourcePath, targetPath] of links) {
   const targetDirectory = dirname(target);
   const desiredLink = relative(targetDirectory, source);
 
-  if (existsSync(target)) {
-    const stat = lstatSync(target);
+  // lstat (not existsSync) so a dangling symlink still counts as an existing target.
+  const stat = lstatOrNull(target);
+  if (stat) {
     if (stat.isSymbolicLink()) {
       const currentTarget = resolve(targetDirectory, readlinkSync(target));
       if (currentTarget === source) {
@@ -50,4 +50,15 @@ for (const [sourcePath, targetPath] of links) {
 
   mkdirSync(targetDirectory, { recursive: true });
   symlinkSync(desiredLink, target);
+}
+
+function lstatOrNull(path) {
+  try {
+    return lstatSync(path);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
 }
