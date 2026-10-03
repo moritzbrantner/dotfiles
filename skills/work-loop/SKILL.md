@@ -20,7 +20,7 @@ There are no claims, queue files, roles, status labels, triage passes or per-rep
 2. **Pick one actionable issue.** An issue is actionable when:
    - it is not labelled `needs-decision`;
    - it is not a bot issue (Renovate's Dependency Dashboard and similar);
-   - every native GitHub dependency in `blockedBy` is closed;
+   - every native GitHub dependency in `blockedBy` is closed (`gh issue view <n> -R <repo> --json blockedBy`);
    - no open PR closes it, since that closing PR is the work in flight:
      `gh api graphql -f query='{repository(owner:"moritzbrantner",name:"<repo>"){issue(number:<n>){closedByPullRequestsReferences(first:5,includeClosedPrs:false){nodes{number}}}}}'`.
 
@@ -38,7 +38,7 @@ There are no claims, queue files, roles, status labels, triage passes or per-rep
 6. **Validate.** Run the validation the repository documents for the touched scope. CI is the full gate; a red check blocks merge, so fix it rather than arguing with it. If the repository has zero CI checks, that counts as green.
 7. **Update GitHub.** Mark the PR ready, wait for checks (`gh pr checks <n> --watch`), fix failures and answer every review finding, then merge per the repository's convention (default `gh pr merge <n> --merge --delete-branch`). The owner authorises the loop to merge its own PRs, pre-existing ones included, once every check is green and every review finding is answered; the Codex review comments count as the review, so no approving GitHub review is needed. If a merge is refused, leave the PR open and report it.
    - Stacked PRs: before merging a PR that is the base of another open PR, retarget that child (`gh pr edit <child> --base <new base>`); deleting the merged branch otherwise closes the child.
-   - Clean up when a PR is merged or closed: `git worktree remove ../<repo>-wt/<n>` and `git branch -D <branch>`. Do the same during the scan for any `~/privat/<repo>-wt/*` worktree whose PR is already merged or closed. A worktree with uncommitted changes is not removed; report it instead.
+   - Clean up when a PR is merged or closed: `git worktree remove ../<repo>-wt/<n>` and `git branch -D <branch>`. Do the same during the scan for stale `~/privat/<repo>-wt/*` agent worktrees. If uncommitted agent changes can be traced to a closed or superseded issue, discard that stale agent state; if their provenance is unclear or they may be unrelated user changes, do not remove them and report them instead.
    - Reviews converge: batch fixes into one push. After the initial automatic review, request at most three additional re-reviews (`@codex review`) per PR, and only after substantive fixes. After the third additional request, answer later findings in their thread without requesting another review; fix real bugs, and list non-blocking polish or follow-ups in the PR description instead of starting another round.
    - No Codex review yet: leave the PR open, treat it as waiting, move on to other work, and request `@codex review` again in a later iteration; this retry does not count toward the re-review limit. Merge only after Codex has reviewed.
 8. **Repeat** from step 1. Keep going until nothing is actionable; one run is not one issue.
