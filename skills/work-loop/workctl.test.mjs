@@ -6,6 +6,7 @@ import {
   classify,
   codexReview,
   parseTarget,
+  selectMergeMethod,
   unansweredCodexFindings,
 } from "./workctl.mjs";
 
@@ -37,7 +38,7 @@ test("CI states", () => {
 });
 
 test("Codex review must complete on current head", () => {
-  const user = { login: "chatgpt-codex-connector[bot]" };
+  const user = { login: "chatgpt-codex-connector[bot]", id: 199175422 };
   const completed = {
     user,
     body:
@@ -54,10 +55,17 @@ test("Codex review must complete on current head", () => {
     ).state,
     "pending",
   );
+  assert.equal(
+    codexReview(
+      [{ ...completed, user: { login: "fake-codex-user", id: 123 } }],
+      "ef9ecb8b76ff",
+    ).state,
+    "pending",
+  );
 });
 
 test("Codex finding is answered by a non-Codex reply", () => {
-  const codex = { login: "chatgpt-codex-connector[bot]" };
+  const codex = { login: "chatgpt-codex-connector[bot]", id: 199175422 };
   assert.equal(
     unansweredCodexFindings([{ id: 1, in_reply_to_id: null, user: codex }]),
     1,
@@ -99,5 +107,39 @@ test("PR classification", () => {
       pr: { ...ready.pr, mergeable: false, mergeable_state: "dirty" },
     }).state,
     "broken",
+  );
+  assert.equal(
+    classify({
+      ...ready,
+      pr: { ...ready.pr, mergeable: true, mergeable_state: "blocked" },
+    }).state,
+    "waiting",
+  );
+});
+
+test("merge method follows repository settings", () => {
+  assert.equal(
+    selectMergeMethod({
+      allow_merge_commit: true,
+      allow_squash_merge: true,
+      allow_rebase_merge: true,
+    }),
+    "--merge",
+  );
+  assert.equal(
+    selectMergeMethod({
+      allow_merge_commit: false,
+      allow_squash_merge: true,
+      allow_rebase_merge: true,
+    }),
+    "--squash",
+  );
+  assert.equal(
+    selectMergeMethod({
+      allow_merge_commit: false,
+      allow_squash_merge: false,
+      allow_rebase_merge: true,
+    }),
+    "--rebase",
   );
 });
