@@ -42,6 +42,21 @@ function api(endpoint, args = []) {
   return ghJson(["api", endpoint, ...args]);
 }
 
+function optionalApi(endpoint) {
+  const result = spawnSync(process.env.WORKCTL_GH ?? "gh", ["api", endpoint], {
+    encoding: "utf8",
+    maxBuffer: 20 * 1024 * 1024,
+  });
+  if (result.error) throw result.error;
+  if (result.status === 0) {
+    return result.stdout.trim() ? JSON.parse(result.stdout) : null;
+  }
+  if (/HTTP 404/i.test(result.stderr ?? "")) {
+    return null;
+  }
+  throw new Error((result.stderr || result.stdout || `gh exited ${result.status}`).trim());
+}
+
 function pages(endpoint) {
   const result = api(endpoint, ["--paginate", "--slurp"]);
   return Array.isArray(result) ? result : [];
@@ -219,11 +234,15 @@ function compact(status) {
   };
 }
 
-export function selectMergeMethod(repository, rules = []) {
+export function selectMergeMethod(repository, rules = [], protection = null) {
   let allowed = new Set();
   if (repository.allow_merge_commit) allowed.add("merge");
   if (repository.allow_squash_merge) allowed.add("squash");
   if (repository.allow_rebase_merge) allowed.add("rebase");
+
+  if (protection?.required_linear_history?.enabled) {
+    allowed.delete("merge");
+  }
 
   for (const rule of rules) {
     if (rule.type === "required_linear_history") {
@@ -243,8 +262,14 @@ export function selectMergeMethod(repository, rules = []) {
 
 function mergeMethod(owner, repo, base) {
   const repository = api(`repos/${owner}/${repo}`);
-  const rules = api(`repos/${owner}/${repo}/rules/branches/${encodeURIComponent(base)}`) ?? [];
-  return selectMergeMethod(repository, rules);
+  const encodedBase = encodeURIComponent(base);
+  const rules = pageArrays(
+    `repos/${owner}/${repo}/rules/branches/${encodedBase}?per_page=100`,
+  );
+  const protection = optionalApi(
+    `repos/${owner}/${repo}/branches/${encodedBase}/protection`,
+  );
+  return selectMergeMethod(repository, rules, protection);
 }
 
 function merge(target) {
