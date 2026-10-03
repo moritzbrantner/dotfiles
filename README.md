@@ -70,7 +70,7 @@ Run:
 node scripts/check.mjs
 ```
 
-The check parses all JSON configuration, validates the Git config, syntax-checks the ESLint module, and runs `git diff --check`.
+The check parses all JSON configuration, validates the Git config, syntax-checks the ESLint module, and runs `git diff --check` over unstaged and staged changes.
 
 ## Convention policy
 

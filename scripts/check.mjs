@@ -16,6 +16,7 @@ for (const [command, args] of [
   ["git", ["config", "--file", ".gitconfig", "--list"]],
   ["node", ["--check", "eslint.config.mjs"]],
   ["git", ["diff", "--check"]],
+  ["git", ["diff", "--cached", "--check"]],
 ]) {
   const result = spawnSync(command, args, { stdio: "inherit" });
   if (result.status !== 0) {
