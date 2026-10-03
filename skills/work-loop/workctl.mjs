@@ -7,6 +7,7 @@ const DEFAULT_OWNER = "moritzbrantner";
 const CODEX_BOT_ID = 199175422;
 const CODEX_BOT_LOGIN = "chatgpt-codex-connector[bot]";
 const PASS = new Set(["success", "skipped", "neutral"]);
+const TRUSTED_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 
 export function parseTarget(value) {
   const url = value.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/);
@@ -98,7 +99,9 @@ export function unansweredCodexFindings(comments) {
     (comment) =>
       comment.in_reply_to_id == null &&
       isCodex(comment.user) &&
-      !(replies.get(comment.id) ?? []).some((reply) => !isCodex(reply.user)),
+      !(replies.get(comment.id) ?? []).some(
+        (reply) => !isCodex(reply.user) && TRUSTED_ASSOCIATIONS.has(reply.author_association),
+      ),
   ).length;
 }
 
@@ -216,15 +219,32 @@ function compact(status) {
   };
 }
 
-export function selectMergeMethod(repository) {
-  if (repository.allow_merge_commit) return "--merge";
-  if (repository.allow_squash_merge) return "--squash";
-  if (repository.allow_rebase_merge) return "--rebase";
-  throw new Error("repository allows no supported PR merge method");
+export function selectMergeMethod(repository, rules = []) {
+  let allowed = new Set();
+  if (repository.allow_merge_commit) allowed.add("merge");
+  if (repository.allow_squash_merge) allowed.add("squash");
+  if (repository.allow_rebase_merge) allowed.add("rebase");
+
+  for (const rule of rules) {
+    if (rule.type === "required_linear_history") {
+      allowed.delete("merge");
+    }
+    if (rule.type === "pull_request" && Array.isArray(rule.parameters?.allowed_merge_methods)) {
+      const branchAllowed = new Set(rule.parameters.allowed_merge_methods);
+      allowed = new Set([...allowed].filter((method) => branchAllowed.has(method)));
+    }
+  }
+
+  for (const method of ["merge", "squash", "rebase"]) {
+    if (allowed.has(method)) return `--${method}`;
+  }
+  throw new Error("repository and target-branch rules allow no supported PR merge method");
 }
 
-function mergeMethod(owner, repo) {
-  return selectMergeMethod(api(`repos/${owner}/${repo}`));
+function mergeMethod(owner, repo, base) {
+  const repository = api(`repos/${owner}/${repo}`);
+  const rules = api(`repos/${owner}/${repo}/rules/branches/${encodeURIComponent(base)}`) ?? [];
+  return selectMergeMethod(repository, rules);
 }
 
 function merge(target) {
@@ -241,7 +261,7 @@ function merge(target) {
     String(status.number),
     "-R",
     `${status.owner}/${status.repo}`,
-    mergeMethod(status.owner, status.repo),
+    mergeMethod(status.owner, status.repo, status.pr.base.ref),
     "--delete-branch",
     "--match-head-commit",
     status.head,
