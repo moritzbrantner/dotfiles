@@ -4,6 +4,8 @@ import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 const DEFAULT_OWNER = "moritzbrantner";
+const CODEX_BOT_ID = 199175422;
+const CODEX_BOT_LOGIN = "chatgpt-codex-connector[bot]";
 const PASS = new Set(["success", "skipped", "neutral"]);
 
 export function parseTarget(value) {
@@ -49,7 +51,7 @@ function pageArrays(endpoint) {
 }
 
 function isCodex(user) {
-  return /codex/i.test(user?.login ?? "");
+  return user?.id === CODEX_BOT_ID && user?.login === CODEX_BOT_LOGIN;
 }
 
 function time(value) {
@@ -142,9 +144,9 @@ export function classify({ pr, checks, review, unanswered }) {
   if (pr.mergeable === false || pr.mergeable_state === "dirty") {
     state = "broken";
     reasons.push("merge conflict");
-  } else if (pr.mergeable == null || pr.mergeable_state === "unknown") {
+  } else if (pr.mergeable !== true || pr.mergeable_state !== "clean") {
     if (state !== "broken") state = "waiting";
-    reasons.push("mergeability unknown");
+    reasons.push(`mergeability ${pr.mergeable_state ?? "unknown"}`);
   }
   if (checks.state === "failed") {
     state = "broken";
@@ -214,6 +216,14 @@ function compact(status) {
   };
 }
 
+function mergeMethod(owner, repo) {
+  const repository = api(`repos/${owner}/${repo}`);
+  if (repository.allow_merge_commit) return "--merge";
+  if (repository.allow_squash_merge) return "--squash";
+  if (repository.allow_rebase_merge) return "--rebase";
+  throw new Error(`${owner}/${repo} allows no supported PR merge method`);
+}
+
 function merge(target) {
   const status = inspect(target);
   if (status.state !== "ready") {
@@ -228,7 +238,7 @@ function merge(target) {
     String(status.number),
     "-R",
     `${status.owner}/${status.repo}`,
-    "--merge",
+    mergeMethod(status.owner, status.repo),
     "--delete-branch",
     "--match-head-commit",
     status.head,
