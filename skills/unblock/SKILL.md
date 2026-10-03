@@ -10,7 +10,7 @@ Turns owner decisions into GitHub state. The work loop labels an issue `needs-de
 ## Steps
 
 1. **Find blocked issues:** `gh search issues --owner moritzbrantner --state open --label needs-decision --json repository,number,title,url,updatedAt`.
-2. **Order them:** issues that other issues are `Blocked by` first, then the oldest.
+2. **Order them:** issues that natively `blocking` other issues first, then the oldest. Honor an obvious legacy blocker reference in older prose if encountered, but do not create or maintain textual blocker state.
 3. **For each issue:**
    - Read the issue, its comments and the code or docs it concerns.
    - If the answer is already there (answered in a comment, settled by the code, `AGENTS.md` or an ADR), record it as below without asking.
