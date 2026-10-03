@@ -216,12 +216,15 @@ function compact(status) {
   };
 }
 
-function mergeMethod(owner, repo) {
-  const repository = api(`repos/${owner}/${repo}`);
+export function selectMergeMethod(repository) {
   if (repository.allow_merge_commit) return "--merge";
   if (repository.allow_squash_merge) return "--squash";
   if (repository.allow_rebase_merge) return "--rebase";
-  throw new Error(`${owner}/${repo} allows no supported PR merge method`);
+  throw new Error("repository allows no supported PR merge method");
+}
+
+function mergeMethod(owner, repo) {
+  return selectMergeMethod(api(`repos/${owner}/${repo}`));
 }
 
 function merge(target) {
