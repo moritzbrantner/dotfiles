@@ -73,9 +73,26 @@ test("Codex finding is answered by a non-Codex reply", () => {
   assert.equal(
     unansweredCodexFindings([
       { id: 1, in_reply_to_id: null, user: codex },
-      { id: 2, in_reply_to_id: 1, user: { login: "owner" } },
+      {
+        id: 2,
+        in_reply_to_id: 1,
+        user: { login: "owner" },
+        author_association: "OWNER",
+      },
     ]),
     0,
+  );
+  assert.equal(
+    unansweredCodexFindings([
+      { id: 1, in_reply_to_id: null, user: codex },
+      {
+        id: 2,
+        in_reply_to_id: 1,
+        user: { login: "random-user" },
+        author_association: "NONE",
+      },
+    ]),
+    1,
   );
 });
 
@@ -140,6 +157,33 @@ test("merge method follows repository settings", () => {
       allow_squash_merge: false,
       allow_rebase_merge: true,
     }),
+    "--rebase",
+  );
+  assert.equal(
+    selectMergeMethod(
+      {
+        allow_merge_commit: true,
+        allow_squash_merge: true,
+        allow_rebase_merge: true,
+      },
+      [{ type: "required_linear_history" }],
+    ),
+    "--squash",
+  );
+  assert.equal(
+    selectMergeMethod(
+      {
+        allow_merge_commit: true,
+        allow_squash_merge: true,
+        allow_rebase_merge: true,
+      },
+      [
+        {
+          type: "pull_request",
+          parameters: { allowed_merge_methods: ["rebase"] },
+        },
+      ],
+    ),
     "--rebase",
   );
 });
