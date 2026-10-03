@@ -9,13 +9,13 @@ One loop for every repository. GitHub is the only work queue and the only durabl
 
 There are no claims, queue files, roles, status labels, triage passes or per-repository loops. The only label the loop sets is `needs-decision`.
 
-Use `node ~/privat/dotfiles/skills/work-loop/workctl.mjs` for PR state and guarded merges. It is the executable source of truth for the deterministic PR readiness checks below.
+Use `node ~/.local/share/coding-agent/workctl.mjs` for PR state and guarded merges. It is the executable source of truth for the deterministic PR readiness checks below.
 
 ## One iteration
 
 1. **Scan.**
    - Open PRs of yours first, because finishing beats starting: `gh search prs --owner moritzbrantner --state open --author @me --limit 1000 --json repository,number,title,url`.
-   - For each open PR run `node ~/privat/dotfiles/skills/work-loop/workctl.mjs pr <repo>#<n>`. Repair `broken` PRs from the reported reasons, leave `waiting` PRs open, and merge `ready` PRs with `workctl merge` after applying the stacked-PR rule below. Only start an issue after every open PR is either finished or waiting.
+   - For each open PR run `node ~/.local/share/coding-agent/workctl.mjs pr <repo>#<n>`. Repair `broken` PRs from the reported reasons, leave `waiting` PRs open, and merge `ready` PRs with `workctl merge` after applying the stacked-PR rule below. Only start an issue after every open PR is either finished or waiting.
    - Reuse existing agent progress instead of starting over. If an agent worktree, branch or dirty agent state can be traced to an open PR or open issue, resume that work. If its issue is closed, superseded or otherwise no longer work, discard that agent worktree/branch and start fresh. Never discard or overwrite unrelated user changes in the ordinary checkout.
    - Close a PR that is superseded (its work is already on the default branch or replaced by another PR) with the reason in the closing comment.
    - Then open issues: `gh search issues --owner moritzbrantner --state open --limit 1000 --json repository,number,title,labels,updatedAt`.
