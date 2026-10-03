@@ -19,7 +19,7 @@ There are no claims, queue files, roles, status labels, triage passes or per-rep
    - it is not labelled `needs-decision`;
    - it is not a bot issue (Renovate's Dependency Dashboard and similar);
    - every issue it names as `Blocked by …` (or its native GitHub dependencies) is closed;
-   - no open PR is linked to it, since that PR is the work in flight:
+   - no open PR closes it, since that closing PR is the work in flight:
      `gh api graphql -f query='{repository(owner:"moritzbrantner",name:"<repo>"){issue(number:<n>){closedByPullRequestsReferences(first:5,includeClosedPrs:false){nodes{number}}}}}'`.
 
    Among those, prefer issues that block other issues, then bugs, then whatever continues recent work. Use judgement; do not build a ranking. Labels such as `prd`, `ready-for-agent` or `enhancement` are information, not gates.
@@ -28,7 +28,8 @@ There are no claims, queue files, roles, status labels, triage passes or per-rep
    - The checkout lives at `~/privat/<repo>`; clone it with `gh repo clone moritzbrantner/<repo>` if it is missing.
    - Never edit the user's checked-out branch or a dirty tree. Work in a worktree from the fresh default branch: `git fetch origin && git worktree add ../<repo>-wt/<n> -b agent/<n>-<topic> origin/<default>`.
    - Follow the repository's instructions exactly: its scope rules, architecture boundaries, test and benchmark conventions and hooks. They override this skill.
-   - Push early and open a draft PR that links the issue. Use `Closes #<n>` only when this PR satisfies the whole issue; for a partial slice use `Part of #<n>` or `Refs #<n>`. The open PR is the only signal that the issue is taken.
+   - Push early and open a draft PR with `Closes #<n>`. The selected issue should be completed by this PR; the open closing PR is the only signal that the issue is taken.
+   - If the issue turns out broader than one coherent PR, complete a substantial coherent chunk, create focused follow-up issues for the separable remainder, and make the moved scope explicit before closing the selected issue. Do not use partial PRs (`Part of #<n>` or `Refs #<n>`) as work-in-flight state.
 5. **Dependencies in other repositories.** When the work needs something another repository owns, do not change both from one task and do not coordinate across repositories. Create the smallest actionable issue there (`gh issue create -R moritzbrantner/<other>`) that would actually unblock this work, describing the missing capability and the consumer, add `Blocked by moritzbrantner/<other>#<m>` to this issue, and continue with work that does not need it or move on. Do not block on a broad PRD, roadmap or tracking issue when the real prerequisite is narrower (for example a publication, pin bump or one missing capability); create that narrow issue instead. The new issue is ordinary work for a later iteration.
 6. **Validate.** Run the validation the repository documents for the touched scope. CI is the full gate; a red check blocks merge, so fix it rather than arguing with it.
 7. **Update GitHub.** Mark the PR ready, wait for checks (`gh pr checks <n> --watch`), fix failures and answer every review finding, then merge per the repository's convention (default `gh pr merge <n> --merge --delete-branch`). The owner authorises the loop to merge its own PRs, pre-existing ones included, once every check is green and every review finding is answered; the Codex review comments count as the review, so no approving GitHub review is needed. If a merge is refused, leave the PR open and report it.
