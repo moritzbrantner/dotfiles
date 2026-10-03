@@ -5,6 +5,7 @@ import {
   checkState,
   classify,
   codexReview,
+  mergePolicy,
   parseTarget,
   selectMergeMethod,
   unansweredCodexFindings,
@@ -197,5 +198,20 @@ test("merge method follows repository settings", () => {
       ],
     ),
     "--rebase",
+  );
+});
+
+
+test("merge queue keeps the head branch", () => {
+  assert.deepEqual(
+    mergePolicy(
+      {
+        allow_merge_commit: true,
+        allow_squash_merge: true,
+        allow_rebase_merge: true,
+      },
+      [{ type: "merge_queue" }],
+    ),
+    { method: "--merge", deleteBranch: false },
   );
 });
