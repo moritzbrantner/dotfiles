@@ -45,6 +45,54 @@ All coding-agent work runs through one global loop over GitHub issues:
 
 GitHub issues and pull requests are the only work state. Repositories keep their own instructions, conventions, tests and architecture; they do not define their own agent loops, claims, queues or status labels.
 
+
+### Work-loop mental model
+
+The skill file is the operational definition; this diagram is the human-readable control flow. A current issue should produce one coherent PR. If the selected issue contains separable remainder beyond one coherent PR, create focused follow-up issues for that remainder rather than expanding the PR indefinitely. Unrelated findings are not added to the work queue.
+
+```mermaid
+flowchart TD
+    START([▶ START WORK LOOP]):::start
+
+    START --> EXISTING{Existing work to finish?}:::question
+
+    EXISTING -->|Yes| FINISH[Finish / repair existing PR]:::yes
+    EXISTING -->|No| ISSUE{Actionable issue available?}:::question
+
+    FINISH --> VERIFY[Validate + review]:::action
+
+    ISSUE -->|Yes| IMPLEMENT[Implement coherent issue scope]:::yes
+    ISSUE -->|No| DECISION{Owner decision needed?}:::question
+
+    IMPLEMENT --> EXTRA{Selected issue has separable remainder?}:::question
+
+    EXTRA -->|Yes| FOLLOWUP[Create focused follow-up issue]:::yes
+    EXTRA -->|No| VERIFY
+
+    FOLLOWUP --> VERIFY
+
+    VERIFY --> PASS{Everything green?}:::question
+
+    PASS -->|Yes| MERGE[Merge PR]:::yes
+    PASS -->|No| FIX[Fix problem]:::no
+
+    FIX --> VERIFY
+    MERGE --> START
+
+    DECISION -->|Yes| ASK[Ask one focused question]:::yes
+    DECISION -->|No| DONE([■ NOTHING ACTIONABLE]):::stop
+
+    ASK --> RECORD[Record decision on issue]:::action
+    RECORD --> START
+
+    classDef start fill:#dbeafe,stroke:#2563eb,stroke-width:3px,color:#111;
+    classDef stop fill:#e5e7eb,stroke:#4b5563,stroke-width:3px,color:#111;
+    classDef question fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#111;
+    classDef yes fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#111;
+    classDef no fill:#fee2e2,stroke:#dc2626,stroke-width:2px,color:#111;
+    classDef action fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111;
+```
+
 Install the skills for Claude Code and Codex by symlinking them:
 
 ```bash
