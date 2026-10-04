@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { realpathSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 
 const DEFAULT_OWNER = "moritzbrantner";
 const CODEX_BOT_ID = 199175422;
@@ -381,22 +379,11 @@ export function main(argv = process.argv.slice(2)) {
   }
 }
 
-function isEntryPoint() {
-  if (!process.argv[1]) {
-    return false;
-  }
-  let entryPath;
-  try {
-    entryPath = realpathSync(process.argv[1]);
-  } catch {
-    // Eval-style imports can put any argument here; an unresolvable path cannot identify us.
-    return false;
-  }
-  // Compare real paths even when Node preserves a symlink in the module URL.
-  return entryPath === realpathSync(fileURLToPath(import.meta.url));
+if (typeof import.meta.main !== "boolean") {
+  throw new Error("workctl requires Node.js 22.18+ or 24.2+ with import.meta.main support");
 }
 
-if (isEntryPoint()) {
+if (import.meta.main) {
   try {
     main();
   } catch (error) {

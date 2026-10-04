@@ -49,7 +49,14 @@ test("CLI entry point follows symlinks while imports remain inert", () => {
       assert.equal(result.stderr, "");
     }
     symlinkSync("cycle.mjs", join(directory, "cycle.mjs"), "file");
-    for (const argument of ["definitely-not-a-file", join(importer, "child"), "cycle.mjs"]) {
+    for (const argument of [
+      source,
+      link,
+      chainedLink,
+      "definitely-not-a-file",
+      join(importer, "child"),
+      "cycle.mjs",
+    ]) {
       const result = spawnSync(
         process.execPath,
         ["--input-type=module", "-e", 'import "./workctl.mjs";', argument],

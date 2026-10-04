@@ -105,8 +105,9 @@ ln -sfn "$PWD/skills/work-loop/workctl.mjs" ~/.local/share/coding-agent/workctl.
 ```
 
 Run the linked helper directly with `node ~/.local/share/coding-agent/workctl.mjs pr dotfiles#15`.
-The CLI resolves symlinks at its entry point; no launcher is needed. Importing the module keeps
-the exported helpers available without running the CLI.
+The helper requires Node.js 22.18+ on the 22.x line or Node.js 24.2+ on newer lines for native
+ESM entry-point detection (`import.meta.main`). Symlink invocation needs no launcher. Importing
+the module keeps the exported helpers available without running the CLI.
 
 ## VS Code
 
