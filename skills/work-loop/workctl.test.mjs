@@ -48,6 +48,16 @@ test("CLI entry point follows symlinks while imports remain inert", () => {
       assert.equal(result.stdout, "");
       assert.equal(result.stderr, "");
     }
+    for (const argument of ["definitely-not-a-file", join(importer, "child")]) {
+      const result = spawnSync(
+        process.execPath,
+        ["--input-type=module", "-e", 'import "./workctl.mjs";', argument],
+        { cwd: directory, encoding: "utf8", timeout: 10_000 },
+      );
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(result.stdout, "");
+      assert.equal(result.stderr, "");
+    }
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

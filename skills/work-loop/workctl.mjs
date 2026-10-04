@@ -381,11 +381,23 @@ export function main(argv = process.argv.slice(2)) {
   }
 }
 
-// Compare filesystem identities even when Node preserves a symlink in the module URL.
-if (
-  process.argv[1] &&
-  realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1])
-) {
+function isEntryPoint() {
+  if (!process.argv[1]) {
+    return false;
+  }
+  try {
+    // Compare real paths even when Node preserves a symlink in the module URL.
+    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1]);
+  } catch (error) {
+    // Eval-style imports can put an arbitrary positional argument in argv[1].
+    if (["ENOENT", "ENOTDIR"].includes(error.code)) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+if (isEntryPoint()) {
   try {
     main();
   } catch (error) {
