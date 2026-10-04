@@ -215,3 +215,43 @@ test("merge queue keeps the head branch", () => {
     { method: "--merge", deleteBranch: false },
   );
 });
+
+
+test("final permitted review allows a later fix only after trusted completed rounds", () => {
+  const user = { login: "chatgpt-codex-connector[bot]", id: 199175422 };
+  const date = (n) => `2026-10-03T18:${String(n).padStart(2, "0")}:00Z`;
+  const reviews = [0, 1, 2, 3].map((n) => ({
+    user, commit_id: String(n + 1).repeat(40), submitted_at: date(n * 2),
+    state: "COMMENTED",
+  }));
+  const requests = [1, 3, 5].map((n) => ({
+    user: { login: "owner" }, author_association: "OWNER",
+    body: "@codex review", created_at: date(n),
+  }));
+  const summary = {
+    user, updated_at: date(6),
+    body: "<!-- codex-pull-request-review-summary -->\n" +
+      "| Code Review | Completed | `4444444` | Manual request |",
+  };
+  const comments = [...requests, summary];
+  assert.equal(codexReview(comments, "5555555", reviews).state, "complete");
+  assert.equal(codexReview(comments.slice(1), "5555555", reviews).state, "pending");
+  assert.equal(codexReview(comments, "5555555", reviews.slice(1)).state, "pending");
+  assert.equal(codexReview(comments.map((c) => c === summary ? c : {
+    ...c, author_association: "NONE",
+  }), "5555555", reviews).state, "pending");
+  assert.equal(codexReview(comments, "5555555", reviews.map((r) => ({
+    ...r, user: { login: user.login, id: 123 },
+  }))).state, "pending");
+  assert.equal(codexReview([...requests, {
+    ...summary, body: summary.body.replace("Completed", "Running"),
+  }], "5555555", reviews).state, "pending");
+  assert.equal(codexReview(comments, "5555555", reviews.map((r) => ({
+    ...r, commit_id: "4444444",
+  }))).state, "pending");
+  assert.equal(classify({
+    pr: { state: "open", mergeable: true, mergeable_state: "clean" },
+    checks: { state: "green" }, review: codexReview(comments, "5555555", reviews),
+    unanswered: 1,
+  }).state, "broken");
+});

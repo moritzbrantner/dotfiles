@@ -74,7 +74,38 @@ function time(value) {
   return Date.parse(value?.updated_at ?? value?.created_at ?? 0) || 0;
 }
 
-export function codexReview(issueComments, head) {
+function reviewLimitExhausted(issueComments, reviews, commit) {
+  const rounds = [
+    ...reviews.filter((review) => isCodex(review.user) &&
+      ["COMMENTED", "APPROVED", "CHANGES_REQUESTED"].includes(review.state))
+      .map((review) => ({ commit: review.commit_id, completed: Date.parse(review.submitted_at) })),
+    ...issueComments.filter((comment) => isCodex(comment.user) &&
+      /Codex Review: Didn't find any major issues/i.test(comment.body ?? ""))
+      .map((comment) => ({
+        commit: comment.body.match(/Reviewed commit:\*\*\s*`([0-9a-f]{7,40})`/i)?.[1],
+        completed: Date.parse(comment.created_at),
+      })),
+  ].filter((round) => /^[0-9a-f]{7,40}$/i.test(round.commit ?? "") &&
+    Number.isFinite(round.completed)).sort((a, b) => a.completed - b.completed);
+  const distinct = [];
+  for (const round of rounds) {
+    if (!distinct.some((old) => old.commit.startsWith(round.commit) ||
+      round.commit.startsWith(old.commit))) distinct.push(round);
+  }
+  const requests = issueComments.filter((comment) =>
+    !isCodex(comment.user) && TRUSTED_ASSOCIATIONS.has(comment.author_association) &&
+    /^@codex review\s*$/i.test((comment.body ?? "").trim()))
+    .map((comment) => Date.parse(comment.created_at)).filter(Number.isFinite);
+  let completedRequests = 0;
+  for (let i = 1; i < distinct.length; i++) {
+    if (requests.some((requested) => requested > distinct[i - 1].completed &&
+      requested < distinct[i].completed)) completedRequests++;
+  }
+  const last = distinct.at(-1);
+  return completedRequests >= 3 && last?.commit.startsWith(commit);
+}
+
+export function codexReview(issueComments, head, reviews = []) {
   const summary = issueComments
     .filter((comment) => isCodex(comment.user))
     .filter((comment) =>
@@ -93,6 +124,9 @@ export function codexReview(issueComments, head) {
 
   const commit = row.match(/`([0-9a-f]{7,40})`/i)?.[1]?.toLowerCase();
   if (!commit || !head.toLowerCase().startsWith(commit)) {
+    if (commit && reviewLimitExhausted(issueComments, reviews, commit)) {
+      return { state: "complete", commit, limitExhausted: true };
+    }
     return {
       state: "pending",
       reason: commit ? `Codex reviewed stale commit ${commit}` : "Codex review commit unknown",
@@ -201,7 +235,14 @@ function inspect(target) {
     `${prefix}/pulls/${number}/comments?per_page=100`,
   );
   const checks = checkState(runs, statuses);
-  const review = codexReview(issueComments, head);
+  const reviews = pageArrays(`${prefix}/pulls/${number}/reviews?per_page=100`);
+  let review = codexReview(issueComments, head, reviews);
+  if (review.limitExhausted) {
+    const comparison = api(`${prefix}/compare/${review.commit}...${head}`);
+    if (!["ahead", "identical"].includes(comparison.status)) {
+      review = { state: "pending", reason: "last reviewed commit is not an ancestor of head" };
+    }
+  }
   const unanswered = unansweredCodexFindings(reviewComments);
   return {
     owner,
