@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   checkState,
@@ -57,20 +62,15 @@ test("Codex review must complete on current head", () => {
     "pending",
   );
   assert.equal(
-    codexReview(
-      [{ ...completed, user: { login: "fake-codex-user", id: 123 } }],
-      "ef9ecb8b76ff",
-    ).state,
+    codexReview([{ ...completed, user: { login: "fake-codex-user", id: 123 } }], "ef9ecb8b76ff")
+      .state,
     "pending",
   );
 });
 
 test("Codex finding is answered by a non-Codex reply", () => {
   const codex = { login: "chatgpt-codex-connector[bot]", id: 199175422 };
-  assert.equal(
-    unansweredCodexFindings([{ id: 1, in_reply_to_id: null, user: codex }]),
-    1,
-  );
+  assert.equal(unansweredCodexFindings([{ id: 1, in_reply_to_id: null, user: codex }]), 1);
   assert.equal(
     unansweredCodexFindings([
       { id: 1, in_reply_to_id: null, user: codex },
@@ -201,7 +201,6 @@ test("merge method follows repository settings", () => {
   );
 });
 
-
 test("merge queue keeps the head branch", () => {
   assert.deepEqual(
     mergePolicy(
@@ -214,4 +213,188 @@ test("merge queue keeps the head branch", () => {
     ),
     { method: "--merge", deleteBranch: false },
   );
+});
+
+test("final permitted review allows a later fix only after trusted completed rounds", () => {
+  const user = { login: "chatgpt-codex-connector[bot]", id: 199175422 };
+  const date = (n) => `2026-10-03T18:${String(n).padStart(2, "0")}:00Z`;
+  const reviews = [0, 1, 2, 3].map((n) => ({
+    user,
+    commit_id: String(n + 1).repeat(40),
+    submitted_at: date(n * 2),
+    state: "COMMENTED",
+  }));
+  const requests = [1, 3, 5].map((n) => ({
+    user: { login: "owner" },
+    author_association: "OWNER",
+    body: "@codex review",
+    created_at: date(n),
+  }));
+  const summary = {
+    user,
+    updated_at: date(6),
+    body:
+      "<!-- codex-pull-request-review-summary -->\n" +
+      "| Code Review | Completed | `4444444` | Manual request |",
+  };
+  const comments = [...requests, summary];
+  assert.equal(codexReview(comments, "5555555", reviews).state, "complete");
+  assert.equal(codexReview(comments.slice(1), "5555555", reviews).state, "pending");
+  assert.equal(codexReview(comments, "5555555", reviews.slice(1)).state, "pending");
+  assert.equal(
+    codexReview(
+      comments.map((c) =>
+        c === summary
+          ? c
+          : {
+              ...c,
+              author_association: "NONE",
+            },
+      ),
+      "5555555",
+      reviews,
+    ).state,
+    "pending",
+  );
+  assert.equal(
+    codexReview(
+      comments,
+      "5555555",
+      reviews.map((r) => ({
+        ...r,
+        user: { login: user.login, id: 123 },
+      })),
+    ).state,
+    "pending",
+  );
+  assert.equal(
+    codexReview(
+      [
+        ...requests,
+        {
+          ...summary,
+          body: summary.body.replace("Completed", "Running"),
+        },
+      ],
+      "5555555",
+      reviews,
+    ).state,
+    "pending",
+  );
+  assert.equal(
+    codexReview(
+      comments,
+      "5555555",
+      reviews.map((r) => ({
+        ...r,
+        commit_id: "4444444",
+      })),
+    ).state,
+    "pending",
+  );
+  assert.equal(
+    classify({
+      pr: { state: "open", mergeable: true, mergeable_state: "clean" },
+      checks: { state: "green" },
+      review: codexReview(comments, "5555555", reviews),
+      unanswered: 1,
+    }).state,
+    "broken",
+  );
+});
+
+test("CLI keeps ancestry, finding replies and CI gates after the review limit", () => {
+  const directory = mkdtempSync(join(tmpdir(), "workctl-review-limit-"));
+  const executable = join(directory, "gh.mjs");
+  writeFileSync(
+    executable,
+    `#!/usr/bin/env node
+const fixture = JSON.parse(process.env.WORKCTL_FIXTURE);
+const endpoint = process.argv[3];
+const value = fixture[endpoint];
+if (value === undefined) throw new Error("Unexpected endpoint: " + endpoint);
+process.stdout.write(JSON.stringify(value));
+`,
+    { mode: 0o755 },
+  );
+  const user = { login: "chatgpt-codex-connector[bot]", id: 199175422 };
+  const date = (n) => `2026-10-03T18:${String(n).padStart(2, "0")}:00Z`;
+  const fixture = {
+    "repos/moritzbrantner/dotfiles/pulls/13": {
+      state: "open",
+      head: { sha: "5555555" },
+      mergeable: true,
+      mergeable_state: "clean",
+    },
+    "repos/moritzbrantner/dotfiles/commits/5555555/check-runs?filter=latest&per_page=100": [
+      { check_runs: [] },
+    ],
+    "repos/moritzbrantner/dotfiles/commits/5555555/status?per_page=100": [{ statuses: [] }],
+    "repos/moritzbrantner/dotfiles/issues/13/comments?per_page=100": [
+      [
+        ...[1, 3, 5].map((n) => ({
+          user: { login: "owner" },
+          author_association: "OWNER",
+          body: "@codex review",
+          created_at: date(n),
+        })),
+        {
+          user,
+          body:
+            "<!-- codex-pull-request-review-summary -->\n" +
+            "| Code Review | Completed | `4444444` | Manual request |",
+        },
+      ],
+    ],
+    "repos/moritzbrantner/dotfiles/pulls/13/reviews?per_page=100": [
+      [
+        ...[0, 1, 2, 3].map((n) => ({
+          user,
+          commit_id: String(n + 1).repeat(40),
+          submitted_at: date(n * 2),
+          state: "COMMENTED",
+        })),
+      ],
+    ],
+    "repos/moritzbrantner/dotfiles/pulls/13/comments?per_page=100": [[]],
+    "repos/moritzbrantner/dotfiles/compare/4444444...5555555": { status: "ahead" },
+  };
+  const run = () => {
+    const result = spawnSync(
+      process.execPath,
+      [fileURLToPath(new URL("./workctl.mjs", import.meta.url)), "pr", "dotfiles#13"],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          WORKCTL_GH: executable,
+          WORKCTL_FIXTURE: JSON.stringify(fixture),
+        },
+      },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    return JSON.parse(result.stdout);
+  };
+  try {
+    assert.equal(run().state, "ready");
+    fixture["repos/moritzbrantner/dotfiles/compare/4444444...5555555"].status = "diverged";
+    assert.equal(run().state, "waiting");
+    fixture["repos/moritzbrantner/dotfiles/compare/4444444...5555555"].status = "ahead";
+    const comments = fixture["repos/moritzbrantner/dotfiles/pulls/13/comments?per_page=100"][0];
+    comments.push({ id: 1, user });
+    assert.equal(run().state, "broken");
+    comments.push({
+      id: 2,
+      in_reply_to_id: 1,
+      user: { login: "owner" },
+      author_association: "OWNER",
+    });
+    assert.equal(run().state, "ready");
+    fixture[
+      "repos/moritzbrantner/dotfiles/commits/5555555/check-runs?filter=latest&per_page=100"
+    ][0].check_runs.push({ name: "ci", status: "completed", conclusion: "failure" });
+    assert.equal(run().state, "broken");
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
