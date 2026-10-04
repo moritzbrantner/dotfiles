@@ -104,6 +104,11 @@ done
 ln -sfn "$PWD/skills/work-loop/workctl.mjs" ~/.local/share/coding-agent/workctl.mjs
 ```
 
+Run the linked helper directly with `node ~/.local/share/coding-agent/workctl.mjs pr dotfiles#15`.
+The helper requires Node.js 22.18+ on the 22.x line or Node.js 24.2+ on newer lines for native
+ESM entry-point detection (`import.meta.main`). Symlink invocation needs no launcher. Importing
+the module keeps the exported helpers available without running the CLI.
+
 ## VS Code
 
 - `.vscode/settings.json` — save-time Oxfmt then Oxlint fixes, focused navigation/refactoring aids, explicit Git synchronization behavior, compact editor presentation, and Rust/TOML formatting.
@@ -119,7 +124,7 @@ Run:
 node scripts/check.mjs
 ```
 
-Configuration validation uses the tools that own the formats: Git validates `.gitconfig`, ESLint loads `eslint.config.mjs`, Oxlint loads `.oxlintrc.json`, and Oxfmt loads `.oxfmtrc.json`. JSON-only VS Code files are parsed directly. The check also runs the work-loop helper tests and `git diff --check` over unstaged and staged changes.
+Configuration validation uses the tools that own the formats: Git validates `.gitconfig`, ESLint loads `eslint.config.mjs`, Oxlint loads `.oxlintrc.json`, and Oxfmt loads `.oxfmtrc.json`. JSON-only VS Code files are parsed directly. The check also runs the work-loop helper tests, including symlink CLI and import regressions, and `git diff --check` over unstaged and staged changes.
 
 `eslint`, `oxlint`, and `oxfmt` must already be on `PATH`. Validation never installs tools or performs hidden network access.
 

@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { pathToFileURL } from "node:url";
 
 const DEFAULT_OWNER = "moritzbrantner";
 const CODEX_BOT_ID = 199175422;
@@ -380,7 +379,11 @@ export function main(argv = process.argv.slice(2)) {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (typeof import.meta.main !== "boolean") {
+  throw new Error("workctl requires Node.js 22.18+ or 24.2+ with import.meta.main support");
+}
+
+if (import.meta.main) {
   try {
     main();
   } catch (error) {

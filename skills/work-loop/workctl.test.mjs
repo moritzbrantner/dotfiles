@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -15,6 +15,61 @@ import {
   selectMergeMethod,
   unansweredCodexFindings,
 } from "./workctl.mjs";
+
+test("CLI entry point follows symlinks while imports remain inert", () => {
+  const directory = mkdtempSync(join(tmpdir(), "workctl-entry-"));
+  const source = fileURLToPath(new URL("./workctl.mjs", import.meta.url));
+  const link = join(directory, "workctl linked.mjs");
+  const chainedLink = join(directory, "workctl.mjs");
+  try {
+    symlinkSync(source, link, "file");
+    symlinkSync("workctl linked.mjs", chainedLink, "file");
+    for (const entry of [source, link, chainedLink]) {
+      for (const flags of [[], ["--preserve-symlinks-main"]]) {
+        const result = spawnSync(process.execPath, [...flags, entry], {
+          cwd: directory,
+          encoding: "utf8",
+          timeout: 10_000,
+        });
+        assert.equal(result.status, 1, `usage exit code for ${entry}: ${result.stderr}`);
+        assert.equal(result.stdout, "");
+        assert.match(JSON.parse(result.stderr).error, /^usage: workctl /);
+      }
+    }
+    const importer = join(directory, "importer.mjs");
+    writeFileSync(importer, 'import "./workctl.mjs";\n');
+    for (const flags of [[], ["--preserve-symlinks"]]) {
+      const result = spawnSync(process.execPath, [...flags, importer], {
+        cwd: directory,
+        encoding: "utf8",
+        timeout: 10_000,
+      });
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(result.stdout, "");
+      assert.equal(result.stderr, "");
+    }
+    symlinkSync("cycle.mjs", join(directory, "cycle.mjs"), "file");
+    for (const argument of [
+      source,
+      link,
+      chainedLink,
+      "definitely-not-a-file",
+      join(importer, "child"),
+      "cycle.mjs",
+    ]) {
+      const result = spawnSync(
+        process.execPath,
+        ["--input-type=module", "-e", 'import "./workctl.mjs";', argument],
+        { cwd: directory, encoding: "utf8", timeout: 10_000 },
+      );
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(result.stdout, "");
+      assert.equal(result.stderr, "");
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 test("targets", () => {
   assert.deepEqual(parseTarget("ui#66"), {
@@ -359,23 +414,23 @@ process.stdout.write(JSON.stringify(value));
     "repos/moritzbrantner/dotfiles/pulls/13/comments?per_page=100": [[]],
     "repos/moritzbrantner/dotfiles/compare/4444444...5555555": { status: "ahead" },
   };
-  const run = () => {
-    const result = spawnSync(
-      process.execPath,
-      [fileURLToPath(new URL("./workctl.mjs", import.meta.url)), "pr", "dotfiles#13"],
-      {
-        encoding: "utf8",
-        env: {
-          ...process.env,
-          WORKCTL_GH: executable,
-          WORKCTL_FIXTURE: JSON.stringify(fixture),
-        },
+  const source = fileURLToPath(new URL("./workctl.mjs", import.meta.url));
+  const link = join(directory, "workctl.mjs");
+  const run = (entry = source) => {
+    const result = spawnSync(process.execPath, [entry, "pr", "dotfiles#13"], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        WORKCTL_GH: executable,
+        WORKCTL_FIXTURE: JSON.stringify(fixture),
       },
-    );
+    });
     assert.equal(result.status, 0, result.stderr);
     return JSON.parse(result.stdout);
   };
   try {
+    symlinkSync(source, link, "file");
+    assert.deepEqual(run(link), run());
     assert.equal(run().state, "ready");
     fixture["repos/moritzbrantner/dotfiles/compare/4444444...5555555"].status = "diverged";
     assert.equal(run().state, "waiting");
