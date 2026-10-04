@@ -385,16 +385,15 @@ function isEntryPoint() {
   if (!process.argv[1]) {
     return false;
   }
+  let entryPath;
   try {
-    // Compare real paths even when Node preserves a symlink in the module URL.
-    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1]);
-  } catch (error) {
-    // Eval-style imports can put an arbitrary positional argument in argv[1].
-    if (["ENOENT", "ENOTDIR"].includes(error.code)) {
-      return false;
-    }
-    throw error;
+    entryPath = realpathSync(process.argv[1]);
+  } catch {
+    // Eval-style imports can put any argument here; an unresolvable path cannot identify us.
+    return false;
   }
+  // Compare real paths even when Node preserves a symlink in the module URL.
+  return entryPath === realpathSync(fileURLToPath(import.meta.url));
 }
 
 if (isEntryPoint()) {
