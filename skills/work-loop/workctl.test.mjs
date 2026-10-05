@@ -467,7 +467,6 @@ process.stdout.write(JSON.stringify(value));
   }
 });
 
-
 test("scan groups open PRs and leaves stacked PRs waiting without inspecting their gates", () => {
   const directory = mkdtempSync(join(tmpdir(), "workctl-scan-"));
   const executable = join(directory, "gh.mjs");
@@ -485,7 +484,7 @@ process.stdout.write(JSON.stringify(value));
   const codex = { login: "chatgpt-codex-connector[bot]", id: 199175422 };
   const search =
     "search/issues?q=" +
-    encodeURIComponent("is:pr is:open author:moritzbrantner user:moritzbrantner") +
+    encodeURIComponent("is:pr is:open user:moritzbrantner") +
     "&sort=updated&order=desc&per_page=100";
   const fixture = {
     [search]: [
