@@ -66,7 +66,7 @@ function pageArrays(endpoint) {
 }
 
 function openPullRequests(owner = DEFAULT_OWNER) {
-  const query = encodeURIComponent(`is:pr is:open author:${owner} user:${owner}`);
+  const query = encodeURIComponent(`is:pr is:open user:${owner}`);
   return pages(`search/issues?q=${query}&sort=updated&order=desc&per_page=100`).flatMap(
     (page) => page?.items ?? [],
   );
