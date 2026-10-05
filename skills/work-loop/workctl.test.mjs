@@ -188,6 +188,17 @@ test("PR classification", () => {
     }).state,
     "waiting",
   );
+  assert.deepEqual(
+    classify({
+      ...ready,
+      pr: { ...ready.pr, base: { ref: "agent/parent" } },
+      defaultBranch: "main",
+    }),
+    {
+      state: "waiting",
+      reasons: ["base agent/parent is not default branch main"],
+    },
+  );
 });
 
 test("merge method follows repository settings", () => {
@@ -375,9 +386,11 @@ process.stdout.write(JSON.stringify(value));
   const user = { login: "chatgpt-codex-connector[bot]", id: 199175422 };
   const date = (n) => `2026-10-03T18:${String(n).padStart(2, "0")}:00Z`;
   const fixture = {
+    "repos/moritzbrantner/dotfiles": { default_branch: "main" },
     "repos/moritzbrantner/dotfiles/pulls/13": {
       state: "open",
       head: { sha: "5555555" },
+      base: { ref: "main" },
       mergeable: true,
       mergeable_state: "clean",
     },
@@ -449,6 +462,96 @@ process.stdout.write(JSON.stringify(value));
       "repos/moritzbrantner/dotfiles/commits/5555555/check-runs?filter=latest&per_page=100"
     ][0].check_runs.push({ name: "ci", status: "completed", conclusion: "failure" });
     assert.equal(run().state, "broken");
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("scan groups open PRs and leaves stacked PRs waiting without inspecting their gates", () => {
+  const directory = mkdtempSync(join(tmpdir(), "workctl-scan-"));
+  const executable = join(directory, "gh.mjs");
+  writeFileSync(
+    executable,
+    `#!/usr/bin/env node
+const fixture = JSON.parse(process.env.WORKCTL_FIXTURE);
+const endpoint = process.argv[3];
+const value = fixture[endpoint];
+if (value === undefined) throw new Error("Unexpected endpoint: " + endpoint);
+process.stdout.write(JSON.stringify(value));
+`,
+    { mode: 0o755 },
+  );
+  const codex = { login: "chatgpt-codex-connector[bot]", id: 199175422 };
+  const search =
+    "search/issues?q=" +
+    encodeURIComponent("is:pr is:open user:moritzbrantner") +
+    "&sort=updated&order=desc&per_page=100";
+  const fixture = {
+    [search]: [
+      {
+        items: [
+          {
+            number: 21,
+            repository_url: "https://api.github.com/repos/moritzbrantner/dotfiles",
+          },
+          {
+            number: 22,
+            repository_url: "https://api.github.com/repos/moritzbrantner/dotfiles",
+          },
+        ],
+      },
+    ],
+    "repos/moritzbrantner/dotfiles": { default_branch: "main" },
+    "repos/moritzbrantner/dotfiles/pulls/21": {
+      state: "open",
+      draft: false,
+      head: { sha: "1111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+      base: { ref: "main" },
+      mergeable: true,
+      mergeable_state: "clean",
+    },
+    "repos/moritzbrantner/dotfiles/commits/1111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-runs?filter=latest&per_page=100":
+      [{ check_runs: [] }],
+    "repos/moritzbrantner/dotfiles/commits/1111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/status?per_page=100":
+      [{ statuses: [] }],
+    "repos/moritzbrantner/dotfiles/issues/21/comments?per_page=100": [
+      [
+        {
+          user: codex,
+          body:
+            "<!-- codex-pull-request-review-summary -->\n" +
+            "| Code Review | Completed | `1111111` | Automatic |",
+        },
+      ],
+    ],
+    "repos/moritzbrantner/dotfiles/pulls/21/comments?per_page=100": [[]],
+    "repos/moritzbrantner/dotfiles/pulls/21/reviews?per_page=100": [[]],
+    "repos/moritzbrantner/dotfiles/pulls/22": {
+      state: "open",
+      draft: false,
+      head: { sha: "2222222bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+      base: { ref: "agent/parent" },
+      mergeable: true,
+      mergeable_state: "clean",
+    },
+  };
+  const source = fileURLToPath(new URL("./workctl.mjs", import.meta.url));
+  try {
+    const result = spawnSync(process.execPath, [source, "scan"], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        WORKCTL_GH: executable,
+        WORKCTL_FIXTURE: JSON.stringify(fixture),
+      },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const output = JSON.parse(result.stdout);
+    assert.deepEqual(output.summary, { total: 2, ready: 1, broken: 0, waiting: 1 });
+    assert.equal(output.ready[0].pr, "moritzbrantner/dotfiles#21");
+    assert.deepEqual(output.waiting[0].reasons, [
+      "base agent/parent is not default branch main",
+    ]);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

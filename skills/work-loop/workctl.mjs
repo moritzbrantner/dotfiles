@@ -65,6 +65,25 @@ function pageArrays(endpoint) {
   return pages(endpoint).flatMap((page) => (Array.isArray(page) ? page : []));
 }
 
+function openPullRequests(owner = DEFAULT_OWNER) {
+  const query = encodeURIComponent(`is:pr is:open user:${owner}`);
+  return pages(`search/issues?q=${query}&sort=updated&order=desc&per_page=100`).flatMap(
+    (page) => page?.items ?? [],
+  );
+}
+
+function searchRepository(item) {
+  const match = item.repository_url?.match(/\/repos\/([^/]+)\/([^/]+)$/);
+  if (!match) throw new Error(`cannot determine repository for PR #${item.number}`);
+  return { owner: match[1], repo: match[2] };
+}
+
+function nonDefaultBaseReason(pr, defaultBranch) {
+  const base = pr.base?.ref;
+  if (!base || !defaultBranch || base === defaultBranch) return null;
+  return `base ${base} is not default branch ${defaultBranch}`;
+}
+
 function isCodex(user) {
   return user?.id === CODEX_BOT_ID && user?.login === CODEX_BOT_LOGIN;
 }
@@ -208,7 +227,10 @@ function latestStatuses(statusPages) {
   return [...latest.values()];
 }
 
-export function classify({ pr, checks, review, unanswered }) {
+export function classify({ pr, checks, review, unanswered, defaultBranch }) {
+  const baseReason = nonDefaultBaseReason(pr, defaultBranch);
+  if (baseReason) return { state: "waiting", reasons: [baseReason] };
+
   const reasons = [];
   let state = "ready";
   if (pr.state !== "open" || pr.draft) {
@@ -239,11 +261,28 @@ export function classify({ pr, checks, review, unanswered }) {
   return { state, reasons };
 }
 
-function inspect(target) {
+function inspect(target, repository = null) {
   const { owner, repo, number } = parseTarget(target);
   const prefix = `repos/${owner}/${repo}`;
+  const repoInfo = repository ?? api(prefix);
   const pr = api(`${prefix}/pulls/${number}`);
   const head = pr.head.sha;
+  const baseReason = nonDefaultBaseReason(pr, repoInfo.default_branch);
+  if (baseReason) {
+    return {
+      owner,
+      repo,
+      number,
+      target: `${owner}/${repo}#${number}`,
+      pr,
+      head,
+      checks: { state: "skipped", failed: [], pending: [] },
+      review: { state: "skipped" },
+      unanswered: 0,
+      state: "waiting",
+      reasons: [baseReason],
+    };
+  }
   const runs = pages(`${prefix}/commits/${head}/check-runs?filter=latest&per_page=100`).flatMap(
     (page) => page?.check_runs ?? [],
   );
@@ -270,7 +309,13 @@ function inspect(target) {
     checks,
     review,
     unanswered,
-    ...classify({ pr, checks, review, unanswered }),
+    ...classify({
+      pr,
+      checks,
+      review,
+      unanswered,
+      defaultBranch: repoInfo.default_branch,
+    }),
   };
 }
 
@@ -288,6 +333,31 @@ function compact(status) {
           ? "unknown"
           : "mergeable",
     ...(status.reasons.length ? { reasons: status.reasons } : {}),
+  };
+}
+
+export function scan(owner = DEFAULT_OWNER) {
+  const repositories = new Map();
+  const groups = { ready: [], broken: [], waiting: [] };
+  for (const item of openPullRequests(owner)) {
+    const { owner: repoOwner, repo } = searchRepository(item);
+    const fullName = `${repoOwner}/${repo}`;
+    let repository = repositories.get(fullName);
+    if (!repository) {
+      repository = api(`repos/${fullName}`);
+      repositories.set(fullName, repository);
+    }
+    const status = inspect(`${fullName}#${item.number}`, repository);
+    groups[status.state].push(compact(status));
+  }
+  return {
+    summary: {
+      total: groups.ready.length + groups.broken.length + groups.waiting.length,
+      ready: groups.ready.length,
+      broken: groups.broken.length,
+      waiting: groups.waiting.length,
+    },
+    ...groups,
   };
 }
 
@@ -369,8 +439,15 @@ function merge(target) {
 
 export function main(argv = process.argv.slice(2)) {
   const [command, target, ...extra] = argv;
+  if (command === "scan") {
+    if (target || extra.length) {
+      throw new Error("usage: workctl scan | workctl <pr|merge> <repo#number|owner/repo#number>");
+    }
+    process.stdout.write(`${JSON.stringify(scan())}\n`);
+    return;
+  }
   if (extra.length || !target || !["pr", "merge"].includes(command)) {
-    throw new Error("usage: workctl <pr|merge> <repo#number|owner/repo#number>");
+    throw new Error("usage: workctl scan | workctl <pr|merge> <repo#number|owner/repo#number>");
   }
   if (command === "pr") {
     process.stdout.write(`${JSON.stringify(compact(inspect(target)))}\n`);
