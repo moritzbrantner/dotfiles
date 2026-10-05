@@ -40,7 +40,7 @@ Copy or symlink these into a project when appropriate, then keep project-specifi
 
 All coding-agent work runs through one global loop over GitHub issues:
 
-- `skills/work-loop` — scan open issues across the repositories, pick an actionable one, work in its repository by that repository's `AGENTS.md`, validate, update GitHub, repeat. Its `workctl.mjs` helper deterministically reports PR readiness and guards merges. A dependency on another repository becomes an issue there.
+- `skills/work-loop` — scan open issues across the repositories, pick an actionable one, work in its repository by that repository's `AGENTS.md`, validate, update GitHub, repeat. Its `workctl.mjs` helper scans the open PR backlog, deterministically reports PR readiness, rejects stacked PR bases, and guards merges. A dependency on another repository becomes an issue there.
 - `skills/unblock` — when nothing is actionable, ask the owner about `needs-decision` issues one question at a time and record each answer on the issue.
 
 GitHub issues and pull requests are the only work state. Repositories keep their own instructions, conventions, tests and architecture; they do not define their own agent loops, claims, queues or status labels.
@@ -104,7 +104,7 @@ done
 ln -sfn "$PWD/skills/work-loop/workctl.mjs" ~/.local/share/coding-agent/workctl.mjs
 ```
 
-Run the linked helper directly with `node ~/.local/share/coding-agent/workctl.mjs pr dotfiles#15`.
+Run the linked helper with `node ~/.local/share/coding-agent/workctl.mjs scan` for the global PR backlog or `node ~/.local/share/coding-agent/workctl.mjs pr dotfiles#15` for one PR.
 The helper requires Node.js 22.18+ on the 22.x line or Node.js 24.2+ on newer lines for native
 ESM entry-point detection (`import.meta.main`). Symlink invocation needs no launcher. Importing
 the module keeps the exported helpers available without running the CLI.
