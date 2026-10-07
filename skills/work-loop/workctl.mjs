@@ -126,7 +126,13 @@ function reviewLimitExhausted(issueComments, reviews, commit) {
       distinct.push(round);
     }
   }
-  const requests = reviewRequests(issueComments)
+  const requests = issueComments
+    .filter(
+      (comment) =>
+        !isCodex(comment.user) &&
+        TRUSTED_ASSOCIATIONS.has(comment.author_association) &&
+        /^@codex review\s*$/i.test((comment.body ?? "").trim()),
+    )
     .map((comment) => Date.parse(comment.created_at))
     .filter(Number.isFinite);
   let completedRequests = 0;
@@ -143,15 +149,6 @@ function reviewLimitExhausted(issueComments, reviews, commit) {
   return completedRequests >= 3 && last?.commit.startsWith(commit);
 }
 
-function reviewRequests(issueComments) {
-  return issueComments.filter(
-    (comment) =>
-      !isCodex(comment.user) &&
-      TRUSTED_ASSOCIATIONS.has(comment.author_association) &&
-      /^@codex review\s*$/i.test((comment.body ?? "").trim()),
-  );
-}
-
 export function codexReview(issueComments, head, reviews = []) {
   const summary = issueComments
     .filter((comment) => isCodex(comment.user))
@@ -159,11 +156,7 @@ export function codexReview(issueComments, head, reviews = []) {
       /codex-pull-request-review-summary|Codex Review Summary/i.test(comment.body ?? ""),
     )
     .sort((a, b) => time(b) - time(a))[0];
-  if (!summary) {
-    return reviewRequests(issueComments).length
-      ? { state: "pending", reason: "Codex review requested" }
-      : { state: "unrequested", reason: "Codex review not requested" };
-  }
+  if (!summary) return { state: "pending", reason: "no Codex review" };
 
   const row = (summary.body ?? "")
     .split("\n")
@@ -261,15 +254,6 @@ export function classify({ pr, checks, review, unanswered, defaultBranch }) {
   if (unanswered) {
     state = "broken";
     reasons.push(`${unanswered} unanswered Codex finding${unanswered === 1 ? "" : "s"}`);
-  } else if (
-    review.state === "unrequested" &&
-    !pr.draft &&
-    pr.state === "open" &&
-    pr.user?.type !== "Bot"
-  ) {
-    // Automatic Codex review is off so bot PRs stay unreviewed; the loop requests its own.
-    state = "broken";
-    reasons.push(`${review.reason}: comment @codex review`);
   } else if (review.state !== "complete" && state !== "broken") {
     state = "waiting";
     reasons.push(review.reason);
