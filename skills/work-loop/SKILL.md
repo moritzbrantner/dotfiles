@@ -38,6 +38,7 @@ Use `node ~/.local/share/coding-agent/workctl.mjs` for deterministic PR scanning
    - Run the repository-documented validation for the touched scope.
    - Re-run `workctl pr <repo>#<n>` for the touched PR: repair `broken`, leave `waiting`, and invoke `workctl merge` only for `ready`.
    - Existing stacked PRs are migration state only: after their base lands, retarget them to the default branch before validation or merge.
+   - Automatic Codex review is off so bot PRs stay unreviewed. Once the implementation is complete and validated, mark the PR ready for review; when `workctl` reports `Codex review not requested`, comment `@codex review`. This initial request does not count toward the re-review cap.
    - Batch review fixes. After the initial Codex review, request at most three additional `@codex review` passes, and only after substantive fixes.
    - Never sit waiting on a Codex review or CI. Once a PR's implementation is complete and it waits only on Codex or CI, start or continue an actionable issue in a different repository, and re-check waiting PRs with `workctl pr` at natural breakpoints (after a push, before picking the next issue) rather than polling. A draft whose implementation is still in progress is not a reason to switch; keep one implementation in progress at a time.
 
