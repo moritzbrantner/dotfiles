@@ -119,8 +119,19 @@ test("Codex review must complete on current head", () => {
   assert.equal(
     codexReview([{ ...completed, user: { login: "fake-codex-user", id: 123 } }], "ef9ecb8b76ff")
       .state,
-    "pending",
+    "unrequested",
   );
+});
+
+test("missing Codex review is unrequested until a trusted request", () => {
+  const request = (author_association) => ({
+    user: { login: "owner" },
+    author_association,
+    body: "@codex review",
+  });
+  assert.equal(codexReview([], "ef9ecb8").state, "unrequested");
+  assert.equal(codexReview([request("NONE")], "ef9ecb8").state, "unrequested");
+  assert.equal(codexReview([request("OWNER")], "ef9ecb8").state, "pending");
 });
 
 test("Codex finding is answered by a non-Codex reply", () => {
@@ -174,6 +185,17 @@ test("PR classification", () => {
     "waiting",
   );
   assert.equal(classify({ ...ready, unanswered: 1 }).state, "broken");
+  const unrequested = { ...ready, review: codexReview([], "ef9ecb8") };
+  assert.deepEqual(classify(unrequested), {
+    state: "broken",
+    reasons: ["Codex review not requested: comment @codex review"],
+  });
+  assert.equal(classify({ ...unrequested, pr: { ...ready.pr, draft: true } }).state, "waiting");
+  assert.equal(
+    classify({ ...unrequested, pr: { ...ready.pr, user: { login: "renovate[bot]", type: "Bot" } } })
+      .state,
+    "waiting",
+  );
   assert.equal(
     classify({
       ...ready,
