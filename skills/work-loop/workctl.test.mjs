@@ -422,7 +422,10 @@ process.stdout.write(JSON.stringify(value));
     const output = JSON.parse(result.stdout);
     assert.deepEqual(output.summary, { total: 3, ready: 2, broken: 0, waiting: 1 });
     assert.equal(output.ready[0].pr, "moritzbrantner/dotfiles#21");
-    assert.equal(output.ready.find((item) => item.pr === "moritzbrantner/dotfiles#23")?.review, "skipped");
+    assert.equal(
+      output.ready.find((item) => item.pr === "moritzbrantner/dotfiles#23")?.review,
+      "skipped",
+    );
     assert.deepEqual(output.waiting[0].reasons, [
       "base agent/parent is not default branch main",
     ]);
