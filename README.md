@@ -38,12 +38,14 @@ Copy or symlink these into a project when appropriate, then keep project-specifi
 
 ## Coding-agent workflow
 
-All coding-agent work runs through one global loop over GitHub issues:
+Implementation work runs through one global loop over GitHub issues. Design discussions use reusable skills without creating another loop:
 
 - `skills/work-loop` — scan open issues across the repositories, pick an actionable one, work in its repository by that repository's `AGENTS.md`, validate, update GitHub, repeat. Its `workctl.mjs` helper scans the open PR backlog, deterministically reports PR readiness, rejects stacked PR bases, and guards merges. A dependency on another repository becomes an issue there.
 - `skills/unblock` — when nothing is actionable, ask the owner about `needs-decision` issues one question at a time and record each answer on the issue.
+- `skills/grill` — discuss consequential product, gameplay, architecture and quality choices one at a time, then persist them in the owning repository's vision/roadmap and ADRs.
+- `skills/issue-preflight` — before creating an implementation issue or starting an unclear one, check its scope and independently observable acceptance against that durable intent; avoid silent MVP substitutions.
 
-GitHub issues and pull requests are the only work state. Repositories keep their own instructions, conventions, tests and architecture; they do not define their own agent loops, claims, queues or status labels.
+GitHub issues and pull requests are the only **execution state**. Product vision, architecture decisions and quality bars live in the owning repository's existing documentation, referenced by issues rather than duplicated. Repositories keep their own instructions, conventions, tests and architecture; they do not define their own agent loops, claims, queues or status labels.
 
 
 ### Work-loop mental model
@@ -92,6 +94,8 @@ flowchart TD
     classDef no fill:#fee2e2,stroke:#dc2626,stroke-width:2px,color:#111;
     classDef action fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111;
 ```
+
+To define an idea conversationally, invoke `grill` (for example, "/grill ARPG combat architecture"). It asks one substantive question at a time, usually no more than 3–5 before consolidating the answers into repository documents. Use `issue-preflight` when converting that intent into bounded GitHub issues; the work loop also consults it before implementation. Neither skill requires a new global database, label, or queue.
 
 Install the skills for Claude Code and Codex by symlinking them:
 
