@@ -204,6 +204,44 @@ test("PR classification", () => {
   );
 });
 
+test("Renovate PRs skip Codex review but retain all other merge gates", () => {
+  const pr = {
+    state: "open",
+    draft: false,
+    user: { login: "renovate[bot]", type: "Bot" },
+    mergeable: true,
+    mergeable_state: "clean",
+  };
+  const ready = {
+    pr,
+    checks: { state: "green", failed: [], pending: [] },
+    review: { state: "pending", reason: "no Codex review" },
+    unanswered: 0,
+  };
+
+  assert.deepEqual(classify(ready), { state: "ready", reasons: [] });
+  for (const user of [
+    { login: "owner", type: "User" },
+    { login: "dependabot[bot]", type: "Bot" },
+    { login: "renovate[bot]", type: "User" },
+  ]) {
+    assert.equal(classify({ ...ready, pr: { ...pr, user } }).state, "waiting");
+  }
+  assert.equal(
+    classify({ ...ready, checks: { state: "pending", failed: [], pending: ["ci"] } }).state,
+    "waiting",
+  );
+  assert.equal(
+    classify({ ...ready, checks: { state: "failed", failed: ["ci"], pending: [] } }).state,
+    "broken",
+  );
+  assert.equal(classify({ ...ready, unanswered: 1 }).state, "broken");
+  assert.equal(
+    classify({ ...ready, pr: { ...pr, mergeable: false, mergeable_state: "dirty" } }).state,
+    "broken",
+  );
+});
+
 test("merge method follows repository settings", () => {
   assert.equal(
     selectMergeMethod({
@@ -315,6 +353,10 @@ process.stdout.write(JSON.stringify(value));
             number: 22,
             repository_url: "https://api.github.com/repos/moritzbrantner/dotfiles",
           },
+          {
+            number: 23,
+            repository_url: "https://api.github.com/repos/moritzbrantner/dotfiles",
+          },
         ],
       },
     ],
@@ -343,6 +385,20 @@ process.stdout.write(JSON.stringify(value));
     ],
     "repos/moritzbrantner/dotfiles/pulls/21/comments?per_page=100": [[]],
     "repos/moritzbrantner/dotfiles/pulls/21/reviews?per_page=100": [[]],
+    "repos/moritzbrantner/dotfiles/pulls/23": {
+      state: "open",
+      draft: false,
+      user: { login: "renovate[bot]", type: "Bot" },
+      head: { sha: "3333333ccccccccccccccccccccccccccccccccc" },
+      base: { ref: "main" },
+      mergeable: true,
+      mergeable_state: "clean",
+    },
+    "repos/moritzbrantner/dotfiles/commits/3333333ccccccccccccccccccccccccccccccccc/check-runs?filter=latest&per_page=100":
+      [{ check_runs: [] }],
+    "repos/moritzbrantner/dotfiles/commits/3333333ccccccccccccccccccccccccccccccccc/status?per_page=100":
+      [{ statuses: [] }],
+    "repos/moritzbrantner/dotfiles/pulls/23/comments?per_page=100": [[]],
     "repos/moritzbrantner/dotfiles/pulls/22": {
       state: "open",
       draft: false,
@@ -364,8 +420,9 @@ process.stdout.write(JSON.stringify(value));
     });
     assert.equal(result.status, 0, result.stderr);
     const output = JSON.parse(result.stdout);
-    assert.deepEqual(output.summary, { total: 2, ready: 1, broken: 0, waiting: 1 });
+    assert.deepEqual(output.summary, { total: 3, ready: 2, broken: 0, waiting: 1 });
     assert.equal(output.ready[0].pr, "moritzbrantner/dotfiles#21");
+    assert.equal(output.ready.find((item) => item.pr === "moritzbrantner/dotfiles#23")?.review, "skipped");
     assert.deepEqual(output.waiting[0].reasons, [
       "base agent/parent is not default branch main",
     ]);
