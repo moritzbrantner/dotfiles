@@ -25,8 +25,9 @@ Use `node ~/.local/share/coding-agent/workctl.mjs` for deterministic PR scanning
 3. **Understand the issue.**
    - Read the issue, comments, applicable repository agent instructions, and the relevant code.
    - If it is already done, close it with evidence.
+   - Apply `issue-preflight` before implementing: verify the issue's promised outcome against the repository's vision/ADRs, architecture and quality constraints. Keep this lightweight for routine, well-specified issues; do not silently replace the intended outcome with the quickest MVP.
    - If repository state settles an ambiguity, proceed and record the choice in the PR.
-   - If an owner product, scope, or architecture decision is required, ask one concrete question on the issue, add `needs-decision`, and move on.
+   - If an owner product, scope, or architecture decision is required, ask one concrete question on the issue, add `needs-decision`, and move on. Use `grill` for a larger owner design discussion when appropriate.
 
 4. **Implement one coherent scope.**
    - Work from a fresh default-branch worktree; do not edit the user's ordinary checkout.

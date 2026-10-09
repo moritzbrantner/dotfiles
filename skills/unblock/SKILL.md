@@ -14,7 +14,8 @@ Turns owner decisions into GitHub state. The work loop labels an issue `needs-de
 3. **For each issue:**
    - Read the issue, its comments and the code or docs it concerns.
    - If the answer is already there (answered in a comment, settled by the code, `AGENTS.md` or an ADR), record it as below without asking.
-   - Otherwise ask the user **one** question. Give two or three lines of context and concrete options with your recommendation first, and use the question tool when one is available. Ask nothing that the repository or tools can answer.
+   - Otherwise ask the user **one** question. Give brief context and a recommendation with genuinely distinct options when they exist (never false or nested choices); an open-ended question is valid. Use the question tool when available. Ask nothing that the repository or tools can answer.
+   - If the issue exposes several consequential product/architecture decisions, use `grill` to resolve them one at a time and update the owning vision/ADR before clearing the blocker.
 4. **Record the answer** on the issue:
    - comment `Decision: <answer>` with any consequence for the scope;
    - edit the issue body only to update a section that the decision changes;
