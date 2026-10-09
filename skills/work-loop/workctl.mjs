@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 const DEFAULT_OWNER = "moritzbrantner";
 const CODEX_BOT_ID = 199175422;
 const CODEX_BOT_LOGIN = "chatgpt-codex-connector[bot]";
+const RENOVATE_BOT_LOGIN = "renovate[bot]";
 const PASS = new Set(["success", "skipped", "neutral"]);
 const TRUSTED_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 
@@ -86,6 +87,10 @@ function nonDefaultBaseReason(pr, defaultBranch) {
 
 function isCodex(user) {
   return user?.id === CODEX_BOT_ID && user?.login === CODEX_BOT_LOGIN;
+}
+
+function isRenovate(pr) {
+  return pr.user?.type === "Bot" && pr.user?.login === RENOVATE_BOT_LOGIN;
 }
 
 function time(value) {
@@ -194,7 +199,7 @@ export function classify({ pr, checks, review, unanswered, defaultBranch }) {
   if (unanswered) {
     state = "broken";
     reasons.push(`${unanswered} unanswered Codex finding${unanswered === 1 ? "" : "s"}`);
-  } else if (review.state !== "complete" && state !== "broken") {
+  } else if (!isRenovate(pr) && review.state !== "complete" && state !== "broken") {
     state = "waiting";
     reasons.push(review.reason);
   }
