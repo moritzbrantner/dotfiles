@@ -228,14 +228,17 @@ function inspect(target, repository = null) {
       reasons: [baseReason],
     };
   }
+  const renovate = isRenovate(pr);
   const runs = pages(`${prefix}/commits/${head}/check-runs?filter=latest&per_page=100`).flatMap(
     (page) => page?.check_runs ?? [],
   );
   const statuses = latestStatuses(pages(`${prefix}/commits/${head}/status?per_page=100`));
-  const issueComments = pageArrays(`${prefix}/issues/${number}/comments?per_page=100`);
+  const issueComments = renovate
+    ? []
+    : pageArrays(`${prefix}/issues/${number}/comments?per_page=100`);
   const reviewComments = pageArrays(`${prefix}/pulls/${number}/comments?per_page=100`);
   const checks = checkState(runs, statuses);
-  const review = codexReview(issueComments, head);
+  const review = renovate ? { state: "skipped" } : codexReview(issueComments, head);
   const unanswered = unansweredCodexFindings(reviewComments);
   return {
     owner,
