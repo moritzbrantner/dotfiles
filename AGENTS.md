@@ -7,7 +7,7 @@ This repository owns personal, reusable development-environment preferences.
 - Keep repository-specific build, test, dependency, runtime, and architecture policy in the repository that owns it.
 - Consumer repositories may copy or symlink preferences from here, but must not require this repository at runtime.
 - Repository-local configuration overrides these personal defaults.
-- `skills/` holds the single global implementation work loop and reusable unblock, design-grilling, and issue-preflight skills; repositories do not define their own agent loops, claims, queues, or status labels.
+- `skills/` holds the single global implementation work loop and reusable unblock, design-grilling, issue-preflight, and independent acceptance-contract procedures; repositories do not define their own agent loops, claims, queues, or status labels.
 
 ## Safety and portability
 
