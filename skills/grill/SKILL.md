@@ -23,11 +23,11 @@ Turn the owner's informal intent into a durable specification that future agents
 
 ## Persist the result
 
-Write changes to the **owning repository** once the consequential decisions are settled or the owner asks to stop. Preserve existing structure and content; make targeted updates, not a full product rewrite.
+Write changes to the **owning repository** once the consequential decisions are settled or the owner asks to stop. Preserve existing structure and content; make targeted updates, not a full product rewrite. Owner-approved product decisions and the resulting current explicit specification are authoritative; an independent acceptance agent verifies that updated tests faithfully express those decisions, but does not approve or veto the owner's product intent (see `acceptance-contract`).
 
 - **Product vision / roadmap:** Describe the intended end state, important user or gameplay scenarios, target scale, quality bar, explicit non-goals, and staged outcomes. An intermediate MVP is a milestone only when the owner explicitly accepts it, not a silent substitute for the target.
 - **ADR / architecture documentation:** Record consequential architecture or mechanics choices with their rationale, constraints, ownership/seams, and rejected alternatives when relevant. Follow the repository's existing ADR convention.
-- **Verification references:** Link supplied screenshots, videos, prototypes, recorded interactions, fixtures, benchmarks, or other observable examples. Translate expectations into measurable acceptance criteria where feasible, without making up budgets or evidence.
+- **Verification references:** Link supplied screenshots, videos, prototypes, recorded interactions, fixtures, benchmarks, or other observable examples. Translate expectations into measurable acceptance criteria where feasible, without making up budgets or evidence. Prioritize executable architecture invariants over unenforceable structural prose where practical; the owning repository retains its tests.
 - **Uncertainty:** Mark open decisions, assumptions, and intentionally deferred concerns explicitly. Identify which ones block implementation; do not recast undecided choices as requirements.
 
 Prefer one concise existing document for each kind of information over duplicate prose. Do not create implementation issues by default; create bounded issues when the owner asks for them, using `issue-preflight`. Issues reference the durable specification instead of restating the product vision.
