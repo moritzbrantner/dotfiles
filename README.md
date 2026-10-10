@@ -43,10 +43,12 @@ Implementation work runs through one global loop over GitHub issues. Design disc
 - `skills/work-loop` — scan open issues across the repositories, pick an actionable one, work in its repository by that repository's `AGENTS.md`, validate, update GitHub, repeat. Its `workctl.mjs` helper scans the open PR backlog, deterministically reports PR readiness, rejects stacked PR bases, and guards merges. A dependency on another repository becomes an issue there.
 - `skills/unblock` — when nothing is actionable, ask the owner about `needs-decision` issues one question at a time and record each answer on the issue.
 - `skills/grill` — discuss consequential product, gameplay, architecture and quality choices one at a time, then persist them in the owning repository's vision/roadmap and ADRs.
-- `skills/issue-preflight` — before creating an implementation issue or starting an unclear one, check its scope and independently observable acceptance against that durable intent; avoid silent MVP substitutions.
+- `skills/issue-preflight` — before creating an implementation issue or starting an unclear one, check its scope and independently observable acceptance against that durable intent; require owner-verifiable end-to-end product feature slices, not backend-only feature claims.
 - `skills/acceptance-contract` — for changes to behavior or architecture, hand off specification-based acceptance tests to an independent agent before implementation, protect behavioral assertions, and fail closed to full test execution when impact mapping is uncertain.
 
 GitHub issues and pull requests are the only **execution state**. Product vision, architecture decisions and quality bars live in the owning repository's existing documentation, referenced by issues rather than duplicated. Repositories keep their own instructions, conventions, tests and architecture; they do not define their own agent loops, claims, queues or status labels.
+
+**Feature delivery rule:** Each user-facing feature issue must end in a real, independently verifiable user journey on GitHub Pages (or an equivalent product surface) with browser acceptance evidence and a check of the published result. Backend-only prerequisites remain technical issues, not completed product features. See `skills/issue-preflight` for exceptions and deployment timing.
 
 
 ### Work-loop mental model
