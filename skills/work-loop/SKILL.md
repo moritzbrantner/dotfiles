@@ -51,6 +51,12 @@ Use `node ~/.local/share/coding-agent/workctl.mjs` for deterministic PR scanning
 
 6. **Repeat** from step 1 until nothing is actionable.
 
+## Usage limits
+
+- Run unattended loops in an open interactive session with Claude Code's `autoContinueAtUsageLimit` left on (the default). The main session then waits at a usage limit and continues at the reset. Background and `-p` sessions don't wait, and neither does any session whose reset is more than 24 hours away (typically the weekly limit).
+- Delegated workers do not wait. A limit ends them with a rate-limit error. When the main session continues after a limit, or the owner says it has reset, check every worker before doing anything else. Resume each one that ended on a rate limit through its existing agent (not a fresh one), so it keeps its context and its repository assignment. Tell it to re-check its PRs with `workctl pr` first, because GitHub state may have moved while it was down.
+- Before starting a replacement worker for the same repositories, stop the old one, so two workers never push to the same branches.
+
 ## When nothing is actionable
 
 Invoke the `unblock` skill. Each recorded owner decision can make work actionable again. Stop when no actionable work or unresolved owner decision remains.
