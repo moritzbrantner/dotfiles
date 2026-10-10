@@ -27,16 +27,19 @@ Use `node ~/.local/share/coding-agent/workctl.mjs` for deterministic PR scanning
    - If it is already done, close it with evidence.
    - Apply `issue-preflight` before implementing: verify the issue's promised outcome against the repository's vision/ADRs, architecture and quality constraints. Keep this lightweight for routine, well-specified issues; do not silently replace the intended outcome with the quickest MVP.
    - If repository state settles an ambiguity, proceed and record the choice in the PR.
+   - Classify whether the actual scope changes behavior or architecture. If so, use `acceptance-contract` to establish independent, repository-owned verification before production edits. Existing tests only suffice if an independent acceptance agent confirms their coverage.
    - If an owner product, scope, or architecture decision is required, ask one concrete question on the issue, add `needs-decision`, and move on. Use `grill` for a larger owner design discussion when appropriate.
 
 4. **Implement one coherent scope.**
    - Work from a fresh default-branch worktree; do not edit the user's ordinary checkout.
+   - For behavior/architecture changes, complete `acceptance-contract` with a **separate acceptance agent/context** first. Keep its tests-first commit and handoff in the same task PR; then implement in a distinct context. If independence cannot be arranged, leave the task draft awaiting handoff, not falsely verified.
    - Push early and open a draft PR with `Closes #<n>`, always targeting the repository default branch. Never create stacked PRs. If the next slice depends on an unmerged PR, leave it as an issue and work elsewhere until that PR lands.
    - If the selected issue is broader than one coherent PR, finish a substantial coherent chunk and create focused follow-up issues for the separable remainder before closing the selected issue. Do not create follow-up issues for unrelated findings.
    - If another repository owns a missing capability, create the smallest issue there that actually unblocks this work and add it as a native GitHub dependency. Do not implement both repositories from one issue.
 
 5. **Validate and merge.**
    - Run the repository-documented validation for the touched scope.
+   - Gate merge on new acceptance contracts, executable architecture invariants, and core smoke checks. Use a deterministically proven affected-test selection only when its dependency mapping is complete; otherwise run the full applicable suite and record the gap. Verify periodic full-suite coverage and record a follow-up if absent. Do not weaken expected behavior to fit an implementation; explicit current product specifications win after independent test verification.
    - Re-run `workctl pr <repo>#<n>` for the touched PR: repair `broken`, leave `waiting`, and invoke `workctl merge` only for `ready`.
    - Existing stacked PRs are migration state only: after their base lands, retarget them to the default branch before validation or merge.
    - Never request or re-request `@codex review` for PRs authored by `renovate[bot]`. They bypass only the Codex review gate; CI, mergeability, and existing unanswered review findings still apply.
