@@ -23,7 +23,7 @@ Turn the owner's informal intent into a durable specification that future agents
 
 ## Persist the result
 
-Write changes to the **owning repository** once the consequential decisions are settled or the owner asks to stop. Preserve existing structure and content; make targeted updates, not a full product rewrite. The current explicit product specification is authoritative over conflicting tests; independent acceptance verification must approve any changed behavioral expectation (see `acceptance-contract`).
+Write changes to the **owning repository** once the consequential decisions are settled or the owner asks to stop. Preserve existing structure and content; make targeted updates, not a full product rewrite. Owner-approved product decisions and the resulting current explicit specification are authoritative; an independent acceptance agent verifies that updated tests faithfully express those decisions, but does not approve or veto the owner's product intent (see `acceptance-contract`).
 
 - **Product vision / roadmap:** Describe the intended end state, important user or gameplay scenarios, target scale, quality bar, explicit non-goals, and staged outcomes. An intermediate MVP is a milestone only when the owner explicitly accepts it, not a silent substitute for the target.
 - **ADR / architecture documentation:** Record consequential architecture or mechanics choices with their rationale, constraints, ownership/seams, and rejected alternatives when relevant. Follow the repository's existing ADR convention.
