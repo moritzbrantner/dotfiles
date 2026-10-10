@@ -24,6 +24,7 @@ Use `node ~/.local/share/coding-agent/workctl.mjs` for deterministic PR scanning
 
 3. **Understand the issue.**
    - Read the issue, comments, applicable repository agent instructions, and the relevant code.
+   - For a known relevant source path, prefer `coding-tooling inspect --target <path> --json` from the repository root (repeat `--target` for multiple paths). Read its applicable instruction and convention references, reuse its focused validation commands, and retain the separate repository completion gate. Root/ancestor `AGENTS.md` and repository-local rules remain mandatory. If tooling is unavailable, the path or relationships are unknown, or inspection is partial, fall back to the repository's own instructions and conservative validation; never invent a narrowed scope or claim unrun checks passed. Do not load unrelated repository documentation when the task context is resolved.
    - If it is already done, close it with evidence.
    - Apply `issue-preflight` before implementing: verify the issue's promised outcome against the repository's vision/ADRs, architecture and quality constraints. Keep this lightweight for routine, well-specified issues; do not silently replace the intended outcome with the quickest MVP.
    - If repository state settles an ambiguity, proceed and record the choice in the PR.
