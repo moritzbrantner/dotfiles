@@ -11,7 +11,7 @@ Turn the owner's informal intent into a durable specification that future agents
 
 1. Identify the owning repository and the intended outcome. Read its `AGENTS.md`, installed conventions, existing vision/roadmap, ADRs, relevant issues, and code where needed. Repository-local authority wins; reuse established documentation rather than creating a competing source.
 2. Summarize what is already decided, what the owner wants, and the *consequential* unknowns. Follow the owner's chosen focus: architecture and mechanics are legitimate starting points; do not force UI/UX questions unless they expose a real gap.
-3. Look for missing expectations that would otherwise produce a misleading "done": target behavior, representative workflows, expected scale, responsiveness or performance constraints, interoperability, quality floor, exclusions, and reference artifacts. Do not invent thresholds or requirements.
+3. Look for missing expectations that would otherwise produce a misleading "done": target behavior, representative workflows, expected scale, responsiveness or performance constraints, interoperability, quality floor, exclusions, and reference artifacts. For requested features, identify an initial independently useful workflow the owner can actually try on GitHub Pages or an equivalent product interface, rather than planning only backend stages. Ask only when the expected experience is genuinely unresolved. Do not invent thresholds or requirements.
 
 ## Ask
 
@@ -27,7 +27,7 @@ Write changes to the **owning repository** once the consequential decisions are 
 
 - **Product vision / roadmap:** Describe the intended end state, important user or gameplay scenarios, target scale, quality bar, explicit non-goals, and staged outcomes. An intermediate MVP is a milestone only when the owner explicitly accepts it, not a silent substitute for the target.
 - **ADR / architecture documentation:** Record consequential architecture or mechanics choices with their rationale, constraints, ownership/seams, and rejected alternatives when relevant. Follow the repository's existing ADR convention.
-- **Verification references:** Link supplied screenshots, videos, prototypes, recorded interactions, fixtures, benchmarks, or other observable examples. Translate expectations into measurable acceptance criteria where feasible, without making up budgets or evidence. Prioritize executable architecture invariants over unenforceable structural prose where practical; the owning repository retains its tests.
+- **Verification references:** Link supplied screenshots, videos, prototypes, recorded interactions, fixtures, benchmarks, or other observable examples. For new features, specify the first owner-checkable Pages/demo workflow and what should visibly happen. Translate expectations into measurable acceptance criteria where feasible, without making up budgets or evidence. Prioritize executable architecture invariants over unenforceable structural prose where practical; the owning repository retains its tests.
 - **Uncertainty:** Mark open decisions, assumptions, and intentionally deferred concerns explicitly. Identify which ones block implementation; do not recast undecided choices as requirements.
 
 Prefer one concise existing document for each kind of information over duplicate prose. Do not create implementation issues by default; create bounded issues when the owner asks for them, using `issue-preflight`. Issues reference the durable specification instead of restating the product vision.
