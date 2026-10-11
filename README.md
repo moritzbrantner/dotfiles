@@ -72,9 +72,9 @@ flowchart TD
     INTENT --> GAP{Material design choice missing?}:::question
     GAP -->|No| IMPLEMENT[Implement coherent scope]:::yes
     GAP -->|Yes| BLOCK[Mark needs-decision and park issue]:::no
-    BLOCK --> ASK[unblock / grill: one owner question]:::action
+    BLOCK --> ISSUE
+    DECISION -->|Yes| ASK[unblock / grill: one owner question]:::action
     ISSUE -->|No| DECISION{Blocked owner question?}:::question
-    DECISION -->|Yes| ASK
     DECISION -->|No| DONE([NOTHING ACTIONABLE]):::stop
     ASK --> RECORD[Persist in Atlas; link issue]:::action
     RECORD --> START
