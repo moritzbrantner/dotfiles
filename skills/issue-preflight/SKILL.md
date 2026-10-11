@@ -11,12 +11,12 @@ Prevent an individually correct change from violating the intended product. This
 
 ## Decision Atlas
 
-When the owning repository has a Decision Atlas, treat it as the durable authority for **what the product should be**. Its semantic leaf entries are only **Decisions** and **Questions**; navigation branches are structure, not another entry kind.
+When the owning repository has a Decision Atlas, treat it as the durable authority for **what the product should be**. Follow the repository-local Atlas schema; absent one, semantic leaf entries default to **Decisions** and **Questions**, with navigation branches as structure. Do not reject locally declared entry kinds.
 
 - Retrieve only relevant entries with `daq find` / `daq get` / `daq questions` when available, falling back to the committed Markdown. Follow applicable current Decisions; do not treat struck-through wording or a stale index as current.
 - An unanswered Question is not automatically blocking. Ask the owner **one question at a time** only when that Question materially affects the current task.
 - If a consequential fork is unsettled, record/reuse a Question rather than choosing silently. On owner approval, preserve the Question and append an `Answers` Decision. For changed intent, use inline `~~old~~ replacement` in the owning Atlas; retain IDs and existing `Supersedes` references.
-- Do not invent parallel Atlas kinds such as constraint, deferred decision, assumption, principle, or proposal. Express those meanings in Decision/Question text or relationships.
+- Do not invent parallel Atlas kinds such as constraint, deferred decision, assumption, principle, or proposal beyond the local schema. Under the default, express those meanings in Decision/Question text or relationships.
 - Issues remain work/acceptance records, not a second product-intent database. Reference Atlas IDs instead of copying durable product intent into issue prose when a reference is sufficient.
 
 ## Check

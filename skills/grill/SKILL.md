@@ -25,12 +25,12 @@ Turn the owner's informal intent into a durable specification that future agents
 
 ## Decision Atlas model
 
-When the owning repository has a Decision Atlas, it is the durable product-intent map and has exactly two semantic leaf-entry kinds:
+When the owning repository has a Decision Atlas, it is the durable product-intent map. Follow its repository-local schema; absent a declared local schema, use these two default semantic leaf-entry kinds:
 
 - **Decision** — owner-selected intent that agents follow until superseded.
 - **Question** — a consequential unresolved choice that may be asked when relevant.
 
-Do not create extra semantic categories for constraints, deferred decisions, assumptions, principles, or proposals. An irrelevant Question may remain unanswered. When a Question is answered, keep its ID and append a Decision linked with `Answers X.Y`. **To change or retire a Decision, keep its ID and use `~~old wording~~ replacement` or `~~old wording~~` in the owning Atlas**; Git preserves history. Preserve existing explicit `Supersedes` references where used, but do not mandate a new entry for ordinary revisions. Ask one material Question at a time.
+Do not invent extra semantic categories for constraints, deferred decisions, assumptions, principles, or proposals beyond the repository-local schema (or the two-kind default). An irrelevant Question may remain unanswered. When a Question is answered, keep its ID and append a Decision linked with `Answers X.Y`. **To change or retire a Decision, keep its ID and use `~~old wording~~ replacement` or `~~old wording~~` in the owning Atlas**; Git preserves history. Preserve existing explicit `Supersedes` references where used, but do not mandate a new entry for ordinary revisions. Ask one material Question at a time.
 
 ## Persist the result
 
@@ -39,7 +39,7 @@ Write changes to the **owning repository** once consequential choices are settle
 - **Product vision / roadmap:** Describe the intended end state, important user or gameplay scenarios, target scale, quality bar, explicit non-goals, and staged outcomes. An intermediate MVP is a milestone only when the owner explicitly accepts it, not a silent substitute for the target.
 - **ADR / architecture documentation:** Record consequential architecture or mechanics choices with their rationale, constraints, ownership/seams, and rejected alternatives when relevant. Follow the repository's existing ADR convention.
 - **Verification references:** Link supplied screenshots, videos, prototypes, recorded interactions, fixtures, benchmarks, or other observable examples. Translate expectations into measurable acceptance criteria where feasible, without making up budgets or evidence. Prioritize executable architecture invariants over unenforceable structural prose where practical; the owning repository retains its tests.
-- **Uncertainty:** In Atlas repositories, represent consequential unresolved product choices as Questions and nothing more elaborate. Identify which Questions actually block current implementation; do not recast unanswered choices as requirements.
+- **Uncertainty:** In Atlas repositories, represent consequential unresolved product choices using the local schema, or Questions under the default. Identify which Questions actually block current implementation; do not recast unanswered choices as requirements.
 
 Prefer one concise existing document for each kind of information over duplicate prose. Do not create implementation issues by default; create bounded issues when the owner asks for them, using `issue-preflight`. Issues reference the durable specification instead of restating the product vision.
 
