@@ -42,11 +42,13 @@ Implementation work runs through one global loop over GitHub issues. Design disc
 
 - `skills/work-loop` — scan open issues across the repositories, pick an actionable one, work in its repository by that repository's `AGENTS.md`, validate, update GitHub, repeat. Its `workctl.mjs` helper scans the open PR backlog, deterministically reports PR readiness, rejects stacked PR bases, and guards merges. A dependency on another repository becomes an issue there.
 - `skills/unblock` — when nothing is actionable, ask the owner about `needs-decision` issues one question at a time and record each answer on the issue.
-- `skills/grill` — discuss consequential product, gameplay, architecture and quality choices one at a time, then persist them in the owning repository's vision/roadmap and ADRs.
-- `skills/issue-preflight` — before creating an implementation issue or starting an unclear one, check its scope and independently observable acceptance against that durable intent; avoid silent MVP substitutions.
+- `skills/grill` — proactively clarify the desired frontend experience, gameplay, architecture, and quality one **concrete question at a time**; use labeled A/B/C alternatives with illustrative reference images for visual choices, then persist owner decisions in the owning repository's vision/roadmap and ADRs.
+- `skills/issue-preflight` — before creating an implementation issue or starting an unclear one, check its scope and independently observable acceptance against that durable intent; require owner-verifiable end-to-end product feature slices, not backend-only feature claims.
 - `skills/acceptance-contract` — for changes to behavior or architecture, hand off specification-based acceptance tests to an independent agent before implementation, protect behavioral assertions, and fail closed to full test execution when impact mapping is uncertain.
 
 GitHub issues and pull requests are the only **execution state**. Product vision, architecture decisions and quality bars live in the owning repository's existing documentation, referenced by issues rather than duplicated. Repositories keep their own instructions, conventions, tests and architecture; they do not define their own agent loops, claims, queues or status labels.
+
+**Feature delivery rule:** Each user-facing feature issue must end in a real, independently verifiable user journey on GitHub Pages (or an equivalent product surface) with browser acceptance evidence and a check of the published result. Backend-only prerequisites remain technical issues, not completed product features. See `skills/issue-preflight` for exceptions and deployment timing.
 
 
 ### Work-loop mental model
@@ -96,7 +98,9 @@ flowchart TD
     classDef action fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111;
 ```
 
-To define an idea conversationally, invoke `grill` (for example, "/grill ARPG combat architecture"). It asks one substantive question at a time, usually no more than 3–5 before consolidating the answers into repository documents. Use `issue-preflight` when converting that intent into bounded GitHub issues; the work loop also consults it before implementation. Neither skill requires a new global database, label, or queue. The work loop also invokes `acceptance-contract` for behavior and architecture changes. Independent acceptance authorship is a procedural handoff, not something a commit author or code review alone can prove.
+To define an idea conversationally, invoke `grill` (for example, "/grill ARPG combat architecture"). It asks one substantive question at a time, normally 3–5 per session (longer only when requested), with **concrete, illustrated A/B/C alternatives** for visual product choices. Each question should make the intended user experience easier to imagine, not just discuss backend tasks. Use `issue-preflight` when converting that intent into bounded GitHub issues; the work loop also consults it before implementation. Neither skill requires a new global database, label, or queue. The work loop also invokes `acceptance-contract` for behavior and architecture changes. Independent acceptance authorship is a procedural handoff, not something a commit author or code review alone can prove.
+
+**Using this skill in ChatGPT:** With GitHub connected, say: **"Use the [grill skill](https://github.com/moritzbrantner/dotfiles/blob/main/skills/grill/SKILL.md) for my ARPG; show example pictures for A/B/C and ask one concrete question at a time."** ChatGPT can read the current GitHub file and follow it. This repository link does not register a native ChatGPT slash command; refer to the skill explicitly when you want that workflow. For voice-only use, the short spoken option descriptions must stand on their own without images.
 
 Install the skills for Claude Code and Codex by symlinking them:
 
