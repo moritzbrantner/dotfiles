@@ -43,6 +43,7 @@ Implementation work runs through one global loop over GitHub issues. Design disc
 - `skills/work-loop` — scan open issues across the repositories, pick an actionable one, work in its repository by that repository's `AGENTS.md`, validate, update GitHub, repeat. Its `workctl.mjs` helper scans the open PR backlog, deterministically reports PR readiness, rejects stacked PR bases, and guards merges. A dependency on another repository becomes an issue there.
 - `skills/unblock` — when nothing is actionable, ask the owner about `needs-decision` issues one question at a time and record each answer on the issue.
 - `skills/grill` — discuss consequential product, gameplay, architecture and quality choices one at a time, then persist them in the owning repository's vision/roadmap and ADRs.
+- `skills/atlas-audit` — audit important historical decisions and implementation drift, propose reviewable Atlas updates, and create bounded issues for owner-approved changes.
 - `skills/issue-preflight` — before creating an implementation issue or starting an unclear one, check its scope and independently observable acceptance against that durable intent; avoid silent MVP substitutions.
 - `skills/acceptance-contract` — for changes to behavior or architecture, hand off specification-based acceptance tests to an independent agent before implementation, protect behavioral assertions, and fail closed to full test execution when impact mapping is uncertain.
 
