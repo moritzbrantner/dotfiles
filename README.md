@@ -38,15 +38,17 @@ Copy or symlink these into a project when appropriate, then keep project-specifi
 
 ## Coding-agent workflow
 
+**Design first for new products and major features:** `grill` → owning Decision Atlas / existing product docs → `issue-preflight` → implementation issues → `work-loop`. Already-specified work, routine bugs and refactors can enter the loop directly. No second scheduler or queue is needed.
+
 Implementation work runs through one global loop over GitHub issues. Design discussions use reusable skills without creating another loop:
 
 - `skills/work-loop` — scan open issues across the repositories, pick an actionable one, work in its repository by that repository's `AGENTS.md`, validate, update GitHub, repeat. Its `workctl.mjs` helper scans the open PR backlog, deterministically reports PR readiness, rejects stacked PR bases, and guards merges. A dependency on another repository becomes an issue there.
-- `skills/unblock` — when nothing is actionable, ask the owner about `needs-decision` issues one question at a time and record each answer on the issue.
-- `skills/grill` — discuss consequential product, gameplay, architecture and quality choices one at a time, then persist them in the owning repository's vision/roadmap and ADRs.
-- `skills/issue-preflight` — before creating an implementation issue or starting an unclear one, check its scope and independently observable acceptance against that durable intent; avoid silent MVP substitutions.
+- `skills/unblock` — resolve blocking Questions discovered during execution; record owner answers in the Atlas when present, then link and unblock the issue.
+- `skills/grill` — refine new product/major-feature direction **before** implementation issues; ask one consequential question at a time, then record concise Decisions/Questions in the owning Atlas when present (otherwise existing docs).
+- `skills/issue-preflight` — translate approved direction into bounded, independently verifiable issues; if a major design choice is unresolved, route back to `grill` before implementation.
 - `skills/acceptance-contract` — for changes to behavior or architecture, hand off specification-based acceptance tests to an independent agent before implementation, protect behavioral assertions, and fail closed to full test execution when impact mapping is uncertain.
 
-GitHub issues and pull requests are the only **execution state**. Product vision, architecture decisions and quality bars live in the owning repository's existing documentation, referenced by issues rather than duplicated. Repositories keep their own instructions, conventions, tests and architecture; they do not define their own agent loops, claims, queues or status labels.
+GitHub issues and pull requests are the only **execution state**. Product intent lives in the owning repository's Decision Atlas when present; roadmaps, ADRs and tests provide supporting detail without duplicating decision authority. Repositories keep their own instructions, conventions, tests and architecture; they do not define their own agent loops, claims, queues or status labels.
 
 
 ### Work-loop mental model
@@ -55,48 +57,45 @@ The skill file is the operational definition; this diagram is the human-readable
 
 ```mermaid
 flowchart TD
-    START([▶ START WORK LOOP]):::start
+    IDEA[New product or major feature]:::start --> GRILL[grill: refine direction]:::action
+    GRILL --> ATLAS[Owning Atlas / product docs]:::action
+    ATLAS --> PREFLIGHT[issue-preflight: bounded acceptance]:::action
+    PREFLIGHT --> ISSUES[GitHub implementation issues]:::action
+    ISSUES --> START([START WORK LOOP]):::start
 
-    START --> EXISTING{Existing work to finish?}:::question
+    START --> EXISTING{Existing PR to finish?}:::question
+    EXISTING -->|Yes| VERIFY[Validate and review]:::action
+    EXISTING -->|No| ISSUE{Actionable issue?}:::question
+    ISSUE -->|Yes| INTENT[issue-preflight + scoped daq lookup]:::action
+    INTENT --> GAP{Material design choice missing?}:::question
+    GAP -->|No| IMPLEMENT[Implement coherent scope]:::yes
+    GAP -->|Yes| BLOCK[Mark needs-decision and park issue]:::no
+    BLOCK --> ASK[unblock / grill: one owner question]:::action
+    ISSUE -->|No| DECISION{Blocked owner question?}:::question
+    DECISION -->|Yes| ASK
+    DECISION -->|No| DONE([NOTHING ACTIONABLE]):::stop
+    ASK --> RECORD[Persist in Atlas; link issue]:::action
+    RECORD --> START
 
-    EXISTING -->|Yes| FINISH[Finish / repair existing PR]:::yes
-    EXISTING -->|No| ISSUE{Actionable issue available?}:::question
-
-    FINISH --> VERIFY[Validate + review]:::action
-
-    ISSUE -->|Yes| IMPLEMENT[Implement coherent issue scope]:::yes
-    ISSUE -->|No| DECISION{Owner decision needed?}:::question
-
-    IMPLEMENT --> EXTRA{Selected issue has separable remainder?}:::question
-
+    IMPLEMENT --> EXTRA{Separable remainder?}:::question
     EXTRA -->|Yes| FOLLOWUP[Create focused follow-up issue]:::yes
     EXTRA -->|No| VERIFY
-
     FOLLOWUP --> VERIFY
-
-    VERIFY --> PASS{Everything green?}:::question
-
-    PASS -->|Yes| MERGE[Merge PR]:::yes
-    PASS -->|No| FIX[Fix problem]:::no
-
+    VERIFY --> PASS{Checks, review and acceptance green?}:::question
+    PASS -->|Yes| MERGE[Guarded merge + verify product]:::yes
+    PASS -->|No| FIX[Repair same PR]:::no
     FIX --> VERIFY
     MERGE --> START
 
-    DECISION -->|Yes| ASK[Ask one focused question]:::yes
-    DECISION -->|No| DONE([■ NOTHING ACTIONABLE]):::stop
-
-    ASK --> RECORD[Record decision on issue]:::action
-    RECORD --> START
-
-    classDef start fill:#dbeafe,stroke:#2563eb,stroke-width:3px,color:#111;
-    classDef stop fill:#e5e7eb,stroke:#4b5563,stroke-width:3px,color:#111;
+    classDef start fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111;
+    classDef stop fill:#e5e7eb,stroke:#4b5563,stroke-width:2px,color:#111;
     classDef question fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#111;
     classDef yes fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#111;
     classDef no fill:#fee2e2,stroke:#dc2626,stroke-width:2px,color:#111;
     classDef action fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111;
 ```
 
-To define an idea conversationally, invoke `grill` (for example, "/grill ARPG combat architecture"). It asks one substantive question at a time, usually no more than 3–5 before consolidating the answers into repository documents. Use `issue-preflight` when converting that intent into bounded GitHub issues; the work loop also consults it before implementation. Neither skill requires a new global database, label, or queue. The work loop also invokes `acceptance-contract` for behavior and architecture changes. Independent acceptance authorship is a procedural handoff, not something a commit author or code review alone can prove.
+To define a new product or major feature, invoke `grill` first (for example, "/grill ARPG combat architecture"). It asks one consequential question at a time, normally 3–5 per session, and persists the answers in the repository-owned Atlas when present. Use scoped `daq` queries to reuse settled decisions; when the tool is unavailable, read the relevant Markdown. Only then use `issue-preflight` to turn that direction into bounded implementation issues. During work, `unblock` is the fallback for genuinely new blocking Questions. Neither skill requires a new global database, label, or queue. The work loop also invokes `acceptance-contract` for behavior and architecture changes. Independent acceptance authorship is a procedural handoff, not something a commit author or code review alone can prove.
 
 Install the skills for Claude Code and Codex by symlinking them:
 
