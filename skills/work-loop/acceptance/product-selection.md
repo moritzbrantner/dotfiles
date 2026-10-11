@@ -56,6 +56,28 @@ fails its policy review. This scenario reviews instructions, not future executio
 
 ## Authority and boundary checks
 
+### Current Atlas authority during selection
+
+Independent acceptance extension for review finding `4243229084`, baseline
+`b008d9a61cbdf61f70a828fe7f0e8b14a32a132a`.
+
+Fixture: repository A's old roadmap/test calls scenario X highest priority, but
+its current owning Atlas Decision retires X and selects Y. Repository B also
+has an evidenced actionable blocker. The loop must consult current applicable
+Atlas Decisions before comparing repositories, scenarios or blocker issues.
+Only the currently approved scenario is eligible; historical evidence for X
+does not reauthorize X or establish priority over B. Use scoped queries and
+authoritative Markdown when the query/index is unavailable or stale. Missing
+current direction/evidence uses the existing gap/owner-decision path.
+
+Required result: selection uses Y and its actual evidence before selecting an
+issue or applying the neutral cross-repository tie rule. Looking up the Atlas
+only after choosing A/X is insufficient. No retired or superseded text may
+override a current Decision.
+
+Baseline observation: step 2 selects from declared scenarios and evidence;
+explicit current Atlas retrieval occurs only in step 3, so this fixture fails.
+
 - Selection uses the repository's declared highest-priority scenario and its actual
   last recorded outcome, with existing scenario/test references. It does not infer
   priority or freshness when reliable evidence is unavailable.
