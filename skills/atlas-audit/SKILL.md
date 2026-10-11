@@ -1,11 +1,11 @@
 ---
 name: atlas-audit
-description: Audit a repository's important product and architecture choices against historical evidence and current implementation. Use to backfill Decision Atlas entries, surface decisions worth revisiting, and create implementation issues only after the owner approves a direction.
+description: Audit historical decisions and drift; propose Atlas updates and approved issues.
 ---
 
 # Atlas audit
 
-Reconstruct consequential product intent without mistaking today's implementation for the intended product.
+Reconstruct consequential intent without treating current implementation as intended product.
 This is an on-demand investigation, not a new work loop, issue queue, or decision authority.
 
 ## Scope and evidence
@@ -15,7 +15,8 @@ This is an on-demand investigation, not a new work loop, issue queue, or decisio
    PRs, comments, tests, and code. Follow repository-specific formats and owner instructions.
 2. Start with high-signal sources: direct owner answers, accepted designs, material issue/PR
    discussions, and observed product behavior. Cite specific source URLs, Atlas IDs, and code/test
-   paths. Record uncertainty; a merged PR or existing code proves implementation, not owner approval.
+   paths. Record uncertainty: a merged PR or existing code proves implementation, not
+   owner approval.
 3. Compare what was intended, what is currently recorded, and what actually exists. Deduplicate
    against current Atlas entries and open/closed GitHub issues before proposing work. Check
    cross-repository dependencies and the single owner of each shared contract.
