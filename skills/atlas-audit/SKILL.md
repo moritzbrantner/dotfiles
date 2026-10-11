@@ -55,15 +55,19 @@ For each finding, briefly give:
   follow the repository's existing strikethrough convention if applicable. Never resolve
   conflicting decisions merely by timestamps or code state.
 
-The Atlas has exactly **Decision** and **Question** as semantic entry kinds, in one authoritative
-source per owning repository. Preserve existing stable IDs and aliases, and keep indexes or
+Repository-local Atlas schemas and formats take precedence. When the repository has no declared
+schema, use exactly **Decision** and **Question** as the default semantic entry kinds, in one
+authoritative source per owning repository. Do not rewrite or reject additional kinds declared locally. Preserve existing stable IDs and aliases, and keep indexes or
 inferred associations read-only until individually reviewed. Prefer an explicit, cited relation
 over repeatedly rediscovering the same connection.
 
 ## Turn approved direction into work
 
-Once the owner-approved Atlas intent is established, compare it with current behavior. For each
-material gap, first update an existing issue if it already covers the work; otherwise use
+Once the owner-approved Atlas intent is established, compare it with current behavior. Creating
+or updating GitHub issues requires an explicit user request or an already authorized work loop,
+consistent with `issue-preflight`. Approval of product intent alone does not authorize issue writes.
+For a read-only audit, report proposed issue changes without applying them. Within authorized
+issue work, for each material gap, first update an existing issue if it already covers the work; otherwise use
 `issue-preflight` to create a bounded implementation issue in the responsible repository.
 Reference the authoritative Atlas ID(s), observed mismatch, intended outcome, independent
 acceptance evidence, and any native dependencies. Split only when independently actionable.
