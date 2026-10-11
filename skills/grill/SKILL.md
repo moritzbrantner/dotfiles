@@ -9,7 +9,7 @@ Turn the owner's informal intent into a durable specification that future agents
 
 ## Prepare
 
-1. Identify the owning repository and the intended outcome. Read its `AGENTS.md`, installed conventions, existing vision/roadmap, ADRs, relevant issues, and code where needed. Repository-local authority wins; reuse established documentation rather than creating a competing source.
+1. Identify the owning repository and the intended outcome. Read its `AGENTS.md`, installed conventions, **Decision Atlas when present**, existing vision/roadmap, ADRs, relevant issues, and code where needed. Repository-local authority wins; reuse established documentation rather than creating a competing source. If an Atlas exists, retrieve relevant Decisions and Questions before inventing new forks.
 2. Summarize what is already decided, what the owner wants, and the *consequential* unknowns. Follow the owner's chosen focus: architecture and mechanics are legitimate starting points; do not force UI/UX questions unless they expose a real gap.
 3. Look for missing expectations that would otherwise produce a misleading "done": target behavior, representative workflows, expected scale, responsiveness or performance constraints, interoperability, quality floor, exclusions, and reference artifacts. Do not invent thresholds or requirements.
 
@@ -21,14 +21,23 @@ Turn the owner's informal intent into a durable specification that future agents
 - In driving/voice conversations, keep turns short and omit code and long lists. Track prior answers within the session.
 - Distinguish an owner decision from an agent-inferable implementation detail. Record nonblocking unknowns rather than grilling about them.
 
+## Decision Atlas model
+
+When the owning repository has a Decision Atlas, it is the durable product-intent map and has exactly two semantic leaf-entry kinds:
+
+- **Decision** — owner-selected intent that agents follow until superseded.
+- **Question** — a consequential unresolved choice that may be asked when relevant.
+
+Do not create extra semantic categories for constraints, deferred decisions, assumptions, principles, or proposals. A Question that is not relevant to current work may simply remain unanswered. When the owner answers a Question, preserve it and append a Decision linked as `Answers X.Y`; when the owner changes intent, preserve the old Decision and append one linked as `Supersedes X.Y`. Ask one material Question at a time.
+
 ## Persist the result
 
-Write changes to the **owning repository** once the consequential decisions are settled or the owner asks to stop. Preserve existing structure and content; make targeted updates, not a full product rewrite. Owner-approved product decisions and the resulting current explicit specification are authoritative; an independent acceptance agent verifies that updated tests faithfully express those decisions, but does not approve or veto the owner's product intent (see `acceptance-contract`).
+Write changes to the **owning repository** once consequential choices are settled or the owner asks to stop. If a Decision Atlas exists, persist Decisions/Questions there first and let detailed specs/ADRs elaborate them rather than duplicating product intent. Preserve existing structure and content; make targeted updates, not a full product rewrite. Owner-approved Decisions and the resulting current explicit specification are authoritative; an independent acceptance agent verifies that updated tests faithfully express those decisions, but does not approve or veto the owner's product intent (see `acceptance-contract`).
 
 - **Product vision / roadmap:** Describe the intended end state, important user or gameplay scenarios, target scale, quality bar, explicit non-goals, and staged outcomes. An intermediate MVP is a milestone only when the owner explicitly accepts it, not a silent substitute for the target.
 - **ADR / architecture documentation:** Record consequential architecture or mechanics choices with their rationale, constraints, ownership/seams, and rejected alternatives when relevant. Follow the repository's existing ADR convention.
 - **Verification references:** Link supplied screenshots, videos, prototypes, recorded interactions, fixtures, benchmarks, or other observable examples. Translate expectations into measurable acceptance criteria where feasible, without making up budgets or evidence. Prioritize executable architecture invariants over unenforceable structural prose where practical; the owning repository retains its tests.
-- **Uncertainty:** Mark open decisions, assumptions, and intentionally deferred concerns explicitly. Identify which ones block implementation; do not recast undecided choices as requirements.
+- **Uncertainty:** In Atlas repositories, represent consequential unresolved product choices as Questions and nothing more elaborate. Identify which Questions actually block current implementation; do not recast unanswered choices as requirements.
 
 Prefer one concise existing document for each kind of information over duplicate prose. Do not create implementation issues by default; create bounded issues when the owner asks for them, using `issue-preflight`. Issues reference the durable specification instead of restating the product vision.
 
