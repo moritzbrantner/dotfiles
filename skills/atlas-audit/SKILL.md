@@ -50,10 +50,12 @@ For each finding, briefly give:
   owner **one consequential question at a time** (use `grill` for a design discussion);
   do not choose for them. An unanswered Question need not block unrelated work.
 - **Revision requested:** Confirm the new direction before modifying product intent.
-  Append a Decision with an explicit `supersedes` link to the old ID. When answering a
-  Question, append a Decision with `answers`. Preserve all historical entries and IDs;
-  follow the repository's existing strikethrough convention if applicable. Never resolve
-  conflicting decisions merely by timestamps or code state.
+  In current Atlas repositories, revise the existing entry inline with `~~old wording~~ replacement`;
+  retire it with fully struck wording. Preserve its stable ID and Git history. Retain existing
+  explicit `supersedes` relations in older formats and follow repository-local revision rules.
+  When answering a Question, preserve it and append a Decision with an explicit `answers` link.
+  Never resolve conflicting decisions merely by timestamps or code state. Do not automatically
+  backfill routine mechanical implementation choices into the Atlas.
 
 Repository-local Atlas schemas and formats take precedence. When the repository has no declared
 schema, use exactly **Decision** and **Question** as the default semantic entry kinds, in one
