@@ -22,6 +22,38 @@ The configuration and workctl tests prove mechanical integrity, not product succ
 | A ready PR passes both mechanical and independent acceptance gates. An acceptance issue is blocked by an open native dependency; its prerequisite is actionable. | Finish the ready PR first, then choose the actionable prerequisite rather than the blocked issue. Preserve repair precedence, default-branch merge rules, needs-decision exclusions and open-closing-PR exclusions. | Start a blocked issue or merge on mechanical readiness alone. |
 | Internal unit tests are green and the implementation is merged, but the independent real-input E2E still fails the intended editable-scene experience. | Report implementation state, demonstrated capability, and user-observable acceptance separately. Escalate a conflict with the intended reference experience through grill/owner decision and clarify product specs before more implementation selection. | Report a product pass from a merge, closed issue, green unit tests or fabricated fixture; weaken acceptance to fit implementation. |
 
+
+## Cross-repository tie regression
+
+Independent review follow-up derived from issue #30 after review finding
+`4243022193`; pre-fix baseline `32c4d174afed1f92f5227573bf969a04a257a4e5`.
+
+Fixture: repositories A and B each declare a highest-priority scenario, each has
+reliable independent failing acceptance evidence and an actionable earliest
+blocker. No owner-approved cross-repository order or evidence establishes that
+one is more consequential. Neither has an urgent override or existing PR to
+finish. Both must remain valid product-blocker candidates.
+
+Required decision: use a documented owner-approved cross-repository order or an
+explicit evidence-based reason when one exists. Otherwise make the tie visible.
+An explicit neutral scheduling rule (for example oldest actionable blocker by
+GitHub creation time, with repository/issue identity breaking exact timestamp
+ties) is acceptable only when recorded as scheduling between equally eligible
+blockers, never superior product priority. Alternatively ask the owner when the
+choice would establish a consequential product trade-off. Do not invent weights,
+semantic priority, scores, freshness or urgency from implementation convenience.
+Missing acceptance evidence must still use the existing evidence-gap path rather
+than being promoted into an artificial tie.
+
+Prohibited result: choose by scan order or agent intuition without a stated tie
+rule/reason; claim an older issue is a more important product; force an owner
+question for a routine scheduling tie after a neutral rule is declared; or apply
+neutral scheduling over established owner priorities or urgent severity evidence.
+
+Baseline observation: step 2 handles each repository's local priority and blocker
+but declares no cross-repository comparison or tie behavior, so this fixture
+fails its policy review. This scenario reviews instructions, not future execution.
+
 ## Authority and boundary checks
 
 - Selection uses the repository's declared highest-priority scenario and its actual
