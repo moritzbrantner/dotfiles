@@ -1,0 +1,51 @@
+# Product-selection acceptance scenarios
+
+Authoritative scope: dotfiles issue #30. This contract was independently derived from
+that issue and default-branch revision `26a21068519ebf69cef9b549c9720dd6709dc1ab`
+before production policy edits. It reviews the instructions an agent consumes;
+it does not claim that text matching proves a future agent's execution.
+
+Run this semantic review against `skills/work-loop/SKILL.md` and its referenced
+existing skills. For each fixture below, locate the operative instruction and
+record the required choice and prohibited claim in the PR evidence. A missing or
+contradictory instruction fails acceptance. Also run `node scripts/check.mjs` in
+full: no verified dependency map exists between policy changes and existing tests.
+The configuration and workctl tests prove mechanical integrity, not product success.
+
+## Regression matrix
+
+| Fixture input | Required decision | Failure to reject |
+| --- | --- | --- |
+| A repository declares video into an editable multi-object Blender scene as its highest-priority acceptance scenario. Its referenced real-input E2E last failed because objects cannot be separately edited. Several geometry micro-optimization issues and the scene blocker are actionable. | Choose the evidenced scene blocker, preferring its existing issue. | Pick a convenient micro-optimization or infer the scene passes from geometry tests. |
+| The repository declares a product goal but has no executable acceptance scenario or reliable recorded outcome. Optional implementation issues are actionable. | Surface the evidence gap and prioritize independently specifying a minimal representative scenario/fixture and acceptance authorship in the owning repository before optional implementation. | Invent a success claim, score, synthetic product pass, or implementation-authored expectation. |
+| An urgent high-severity correctness regression is actionable alongside a feature acceptance blocker. | The urgent regression remains eligible and can supersede the feature blocker with a recorded reason. | Categorically defer urgent correctness or security work behind features. |
+| A ready PR passes both mechanical and independent acceptance gates. An acceptance issue is blocked by an open native dependency; its prerequisite is actionable. | Finish the ready PR first, then choose the actionable prerequisite rather than the blocked issue. Preserve repair precedence, default-branch merge rules, needs-decision exclusions and open-closing-PR exclusions. | Start a blocked issue or merge on mechanical readiness alone. |
+| Internal unit tests are green and the implementation is merged, but the independent real-input E2E still fails the intended editable-scene experience. | Report implementation state, demonstrated capability, and user-observable acceptance separately. Escalate a conflict with the intended reference experience through grill/owner decision and clarify product specs before more implementation selection. | Report a product pass from a merge, closed issue, green unit tests or fabricated fixture; weaken acceptance to fit implementation. |
+
+## Authority and boundary checks
+
+- Selection uses the repository's declared highest-priority scenario and its actual
+  last recorded outcome, with existing scenario/test references. It does not infer
+  priority or freshness when reliable evidence is unavailable.
+- Choose the earliest actionable, evidenced blocker on the failing journey;
+  prefer an existing GitHub issue and create only a focused necessary issue.
+- Product intent, fixtures, executable acceptance and architecture belong in the
+  owning repository. GitHub issues/PRs and native dependencies remain execution
+  state; only `needs-decision` is introduced as a workflow label.
+- No new planner, daemon, score database, queue, coordination state or universal
+  product specification schema is required. Deterministic workctl mechanics
+  remain separate from product semantics.
+- Independent acceptance expectations cannot be weakened by the implementation
+  agent. Unknown test impact requires the full applicable suite.
+- Dogfood selection on video-to-3d issue #77, PR #149 and issues #150/#151 using
+  their current recorded evidence. A policy review is not a claim that their
+  product acceptance passes; record observed decisions and any evidence gap.
+
+## Baseline observation
+
+At the pinned baseline, step 2 chooses unblocking work, then bugs, then recent
+progress. It does not inspect a declared product scenario/outcome, distinguish
+implementation/capability/product acceptance, or specify the missing-evidence
+selection path. The first, second and fifth fixtures therefore fail the policy
+review. Existing PR-first and dependency exclusions already cover part of the
+fourth fixture and must be preserved.
