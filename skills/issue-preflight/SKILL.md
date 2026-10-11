@@ -7,9 +7,19 @@ description: Check a proposed or selected coding issue against its repository's 
 
 Prevent an individually correct change from violating the intended product. This is a short contract check, not a separate planning queue or mandatory new documentation layer.
 
+## Decision Atlas
+
+When the owning repository has a Decision Atlas, treat it as the durable authority for **what the product should be**. Its semantic leaf entries are only **Decisions** and **Questions**; navigation branches are structure, not another entry kind.
+
+- Retrieve the Atlas entries relevant to the issue before making consequential product choices. Follow applicable Decisions.
+- An unanswered Question is not automatically blocking. Ask the owner **one question at a time** only when that Question materially affects the current task.
+- If preflight discovers a consequential fork not already settled, record it as a Question rather than silently choosing. Once the owner answers, preserve the Question and append a linked Decision; changed intent likewise appends a linked superseding Decision.
+- Do not invent parallel Atlas kinds such as constraint, deferred decision, assumption, principle, or proposal. Express those meanings in Decision/Question text or relationships.
+- Issues remain work/acceptance records, not a second product-intent database. Reference Atlas IDs instead of copying durable product intent into issue prose when a reference is sufficient.
+
 ## Check
 
-1. Read the owning repository's `AGENTS.md`, installed conventions, existing vision/roadmap and ADRs, the relevant code, and the proposed issue or selected issue with comments. Current owner instructions and repository decisions take precedence over general defaults.
+1. Read the owning repository's `AGENTS.md`, installed conventions, Decision Atlas when present, existing vision/roadmap and ADRs, the relevant code, and the proposed issue or selected issue with comments. Current owner instructions and repository Decisions take precedence over general defaults.
 2. Identify the promised outcome and user-visible or system-visible behavior. Check known architecture, authority boundaries, reuse requirements, supported environments, expected scale, and relevant performance or experience constraints.
 3. Look for **silent scope reduction**: placeholders, a lowest-effort MVP, deferred interaction/visual quality, unbounded work per entity, unnecessary recomputation, or a new competing subsystem that appears to satisfy the wording but contradicts documented intent. Do not presume every small feature needs every quality dimension.
 4. Right-size the work into one coherent PR with explicit in-scope and out-of-scope behavior. Before creating an oversized issue, split it into independently valuable, ordered issues with native dependencies where necessary. For an existing oversized issue, preserve its intended outcome and link focused follow-ups; do not silently redefine completion.
@@ -18,7 +28,7 @@ Prevent an individually correct change from violating the intended product. This
 
 ## Decision boundary
 
-- If a consequential product, architecture, or quality choice remains unowned, ask **one** targeted question (use `grill` when a short series of decisions is needed). A work-loop issue that cannot proceed should retain `needs-decision` until resolved.
+- If a consequential product, architecture, or quality choice remains unresolved, first check whether it already exists as an Atlas Question. Ask **one** targeted question only when it materially affects the task (use `grill` when a short series is needed), then persist the answer as a linked Atlas Decision when the repository uses an Atlas. A work-loop issue that cannot proceed should retain `needs-decision` until resolved.
 - If the choice is mechanical or already settled by the repository, proceed without interrupting the owner. State any harmless assumption clearly.
 - Do not generate issues from brainstorming alone. Create or modify GitHub issues when explicitly requested or as part of an authorized work loop, using the repository's existing issue format.
 
