@@ -11,6 +11,8 @@ Do not add claims, queues, coordination files, per-repository loops, or status l
 
 Use `node ~/.local/share/coding-agent/workctl.mjs` for deterministic PR scanning, readiness, and guarded merges.
 
+**Design precedes execution:** A new product or major feature should pass through `grill` and repository-owned decisions **before** implementation issues are written. This loop consumes approved issue scopes; it must not choose missing product direction during coding. Existing well-specified features, routine bug fixes and behavior-preserving refactors require no new grilling ceremony.
+
 ## Loop
 
 1. **Finish existing work first.**
@@ -31,13 +33,13 @@ Use `node ~/.local/share/coding-agent/workctl.mjs` for deterministic PR scanning
    - Treat reopened feature issues marked by a previous comment as **awaiting live deployment verification**, not as completed merely because their implementation PR merged. At the next natural scan, check the deployed revision/route and the specified owner actions: close with concrete live evidence only when verified; leave pending issues open while publishing is in progress; repair the issue if published behavior fails. Do not create another queue or polling loop.
 
 3. **Understand the issue.**
-   - Read the issue, comments, applicable repository agent instructions, and the relevant code.
+   - Read the issue, comments, applicable repository agent instructions, relevant code, and current product intent. When an Atlas exists, use scoped `daq get` / `daq find` / `daq questions` where available, falling back to the authoritative Markdown; do not infer decisions from retired text or stale indexes.
    - For a known relevant source path, prefer `coding-tooling inspect --target <path> --json` from the repository root (repeat `--target` for multiple paths). Read its applicable instruction and convention references, reuse its focused validation commands, and retain the separate repository completion gate. Root/ancestor `AGENTS.md` and repository-local rules remain mandatory. If tooling is unavailable, the path or relationships are unknown, or inspection is partial, fall back to the repository's own instructions and conservative validation; never invent a narrowed scope or claim unrun checks passed. Do not load unrelated repository documentation when the task context is resolved.
    - If it is already done, close it with evidence.
-   - Apply `issue-preflight` before implementing: verify the issue's promised outcome against the repository's vision/ADRs, architecture and quality constraints. Keep this lightweight for routine, well-specified issues; do not silently replace the intended outcome with the quickest MVP. For user-facing features, require a demonstrable vertical slice with an actual Pages route (or equivalent), owner actions, and an expected observable result; a backend-only step is a technical enabler, not feature completion.
+   - Apply `issue-preflight` before implementing: verify the promised outcome against current Atlas Decisions (when present), supporting vision/ADRs, architecture and quality constraints. If a new major feature lacks owner-approved direction, park it for design-first `grill` rather than implementing a guessed MVP. Keep this lightweight for routine, well-specified work. For user-facing features, require a demonstrable vertical slice with an actual Pages route (or equivalent), owner actions, and an expected observable result; a backend-only step is a technical enabler, not feature completion.
    - If repository state settles an ambiguity, proceed and record the choice in the PR.
    - Classify whether the actual scope changes behavior or architecture. If so, use `acceptance-contract` to establish independent, repository-owned verification before production edits. Existing tests only suffice if an independent acceptance agent confirms their coverage.
-   - If an owner product, scope, or architecture decision is required, ask one concrete question on the issue, add `needs-decision`, and move on. Use `grill` for a larger owner design discussion when appropriate.
+   - If a consequential owner decision is still needed, record or reference its Atlas Question when applicable, add `needs-decision`, and move to other actionable work; invoke `unblock`/`grill` one question at a time when the owner is available. Do not make implementation decisions on the owner's behalf.
 
 4. **Implement one coherent scope.**
    - Work from a fresh default-branch worktree; do not edit the user's ordinary checkout.
