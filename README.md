@@ -42,7 +42,7 @@ Copy or symlink these into a project when appropriate, then keep project-specifi
 
 Implementation work runs through one global loop over GitHub issues. Design discussions use reusable skills without creating another loop:
 
-- `skills/work-loop` — scan open issues across the repositories, pick an actionable one, work in its repository by that repository's `AGENTS.md`, validate, update GitHub, repeat. Its `workctl.mjs` helper scans the open PR backlog, deterministically reports PR readiness, rejects stacked PR bases, and guards merges. A dependency on another repository becomes an issue there.
+- `skills/work-loop` — finish existing PRs, inspect repository-owned product acceptance evidence, pick an actionable blocker or urgent correctness issue, work in its repository by that repository's `AGENTS.md`, validate, update GitHub, repeat. Its `workctl.mjs` helper scans the open PR backlog, deterministically reports PR readiness, rejects stacked PR bases, and guards merges. A dependency on another repository becomes an issue there.
 - `skills/unblock` — resolve blocking Questions discovered during execution; record owner answers in the Atlas when present, then link and unblock the issue.
 - `skills/grill` — refine new product/major-feature direction **before** implementation issues; ask one consequential question at a time, then record concise Decisions/Questions in the owning Atlas when present (otherwise existing docs). Proactively use concrete illustrated A/B/C alternatives for unresolved visual choices.
 - `skills/issue-preflight` — translate approved direction into bounded, independently verifiable issues; if a major design choice is unresolved, route back to `grill` before implementation. Require owner-verifiable end-to-end product slices, not backend-only feature claims.
@@ -65,9 +65,10 @@ flowchart TD
     PREFLIGHT --> ISSUES[GitHub implementation issues]:::action
     ISSUES --> START([START WORK LOOP]):::start
 
-    START --> EXISTING{Existing PR to finish?}:::question
-    EXISTING -->|Yes| VERIFY[Validate and review]:::action
-    EXISTING -->|No| ISSUE{Actionable issue?}:::question
+    START --> EXISTING{Existing work to finish?}:::question
+    EXISTING -->|Yes| FINISH[Finish / repair existing PR]:::yes
+    FINISH --> VERIFY[Validate and review]:::action
+    EXISTING -->|No| ISSUE{Evidenced blocker or urgent issue?}:::question
     ISSUE -->|Yes| INTENT[issue-preflight + scoped daq lookup]:::action
     INTENT --> GAP{Material design choice missing?}:::question
     GAP -->|No| IMPLEMENT[Implement coherent scope]:::yes
