@@ -40,7 +40,7 @@ Copy or symlink these into a project when appropriate, then keep project-specifi
 
 Implementation work runs through one global loop over GitHub issues. Design discussions use reusable skills without creating another loop:
 
-- `skills/work-loop` — scan open issues across the repositories, pick an actionable one, work in its repository by that repository's `AGENTS.md`, validate, update GitHub, repeat. Its `workctl.mjs` helper scans the open PR backlog, deterministically reports PR readiness, rejects stacked PR bases, and guards merges. A dependency on another repository becomes an issue there.
+- `skills/work-loop` — finish existing PRs, inspect repository-owned product acceptance evidence, pick an actionable blocker or urgent correctness issue, work in its repository by that repository's `AGENTS.md`, validate, update GitHub, repeat. Its `workctl.mjs` helper scans the open PR backlog, deterministically reports PR readiness, rejects stacked PR bases, and guards merges. A dependency on another repository becomes an issue there.
 - `skills/unblock` — when nothing is actionable, ask the owner about `needs-decision` issues one question at a time and record each answer on the issue.
 - `skills/grill` — discuss consequential product, gameplay, architecture and quality choices one at a time, then persist them in the owning repository's vision/roadmap and ADRs.
 - `skills/issue-preflight` — before creating an implementation issue or starting an unclear one, check its scope and independently observable acceptance against that durable intent; avoid silent MVP substitutions.
@@ -60,7 +60,7 @@ flowchart TD
     START --> EXISTING{Existing work to finish?}:::question
 
     EXISTING -->|Yes| FINISH[Finish / repair existing PR]:::yes
-    EXISTING -->|No| ISSUE{Actionable issue available?}:::question
+    EXISTING -->|No| ISSUE{Evidenced blocker or urgent issue available?}:::question
 
     FINISH --> VERIFY[Validate + review]:::action
 

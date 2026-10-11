@@ -18,9 +18,14 @@ Use `node ~/.local/share/coding-agent/workctl.mjs` for deterministic PR scanning
    - A PR whose base is not the repository default branch is `waiting`: never merge it into another feature branch. For legacy stacked PRs, merge the base PR first, then retarget the child to the default branch and revalidate it.
    - Resume existing agent work when it can be traced to an open PR or issue. Discard stale agent-owned work only when its work is closed or superseded. Never overwrite unrelated user changes.
 
-2. **Pick one actionable issue.**
+2. **Pick one actionable issue from product evidence.**
    - Skip `needs-decision`, bot/meta issues, issues with open native `blockedBy` dependencies, and issues already represented by an open closing PR.
-   - Prefer work that unblocks other work, then bugs, then work that continues recent progress. Use judgement rather than introducing another ranking or queue.
+   - After finishing existing PRs, inspect each candidate repository's **declared highest-priority product acceptance scenario** and its last recorded outcome. Reference its existing scenario/test and evidence (input, revision, result and limitations where recorded); a closed issue or green internal test is not a substitute. Product intent and acceptance stay in the owning repository's existing documentation and tests.
+   - For a failing scenario, choose the earliest **actionable, evidenced blocker** along that user journey. Prefer its existing GitHub issue; create a focused issue only when needed, using `issue-preflight`. Follow native dependencies to an actionable prerequisite rather than starting a blocked acceptance issue. Do not prefer optional micro-optimizations merely because they are easy or recent.
+   - If an executable scenario or reliable outcome is missing, explicitly record that evidence gap. Prioritize independently specifying a minimal representative scenario/fixture and separate acceptance-test authorship in the owning repository, using `issue-preflight` and `acceptance-contract`, before optional implementation. Do not fabricate a fixture result, infer freshness or priority, or introduce a score to replace missing evidence. If the repository has no declared priority and existing intent does not settle it, use `grill`/an owner decision rather than inventing one.
+   - Urgent correctness regressions and security defects remain eligible to supersede feature blockers. Record the severity/evidence and why the chosen issue takes precedence; do not force urgent maintenance behind feature work. For remaining maintenance, use existing dependencies and repository intent to explain the choice.
+   - Record the selected scenario/evidence, blocker or prerequisite, and reason on the owning issue or PR. Keep GitHub as execution state: no separate planner, queue, daemon, score database, coordination files, universal product-spec schema, or new workflow labels. `workctl` proves mechanical PR readiness, not product priority or acceptance.
+   - If an independent end-to-end result conflicts with the intended reference experience despite green tests, invoke `grill`/an owner decision and clarify the owning product specifications before choosing more implementation work for that scenario. The implementation agent cannot weaken acceptance expectations to fit its output; use `acceptance-contract` to independently verify translations of explicit current owner decisions.
 
 3. **Understand the issue.**
    - Read the issue, comments, applicable repository agent instructions, and the relevant code.
@@ -63,5 +68,13 @@ Use `node ~/.local/share/coding-agent/workctl.mjs` for deterministic PR scanning
 Invoke the `unblock` skill. Each recorded owner decision can make work actionable again. Stop when no actionable work or unresolved owner decision remains.
 
 ## Report
+
+Throughout selection and at the end, distinguish these three evidence claims:
+
+- **Implementation:** issue/PR state and the changes actually delivered.
+- **Capability:** behavior demonstrated by named checks, with their input, revision and limits; internal tests or a fabricated fixture do not establish a real-input user journey.
+- **User-observable acceptance:** the declared scenario's actual recorded independent end-to-end outcome, or explicitly **missing/unrun/stale evidence**. Never report product-level progress or a pass solely from a closed issue, merged PR, passing unit tests, or fabricated fixture. A failing end-to-end result remains failing despite green internal checks.
+
+For policy changes, run all scenarios in `acceptance/product-selection.md` and record their semantic decisions separately from mechanical checks. This review verifies the instructions, not a consumer product outcome.
 
 At the end, report one line per issue touched: `repo#n → merged PR #m | PR #m waiting on <x> | needs-decision | closed (reason)`, plus anything the user must do.
