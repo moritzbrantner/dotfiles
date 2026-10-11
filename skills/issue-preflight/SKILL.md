@@ -7,13 +7,15 @@ description: Check a proposed or selected coding issue against its repository's 
 
 Prevent an individually correct change from violating the intended product. This is a short contract check, not a separate planning queue or mandatory new documentation layer.
 
+**Design-first gate:** For a *new product or major feature* whose consequential direction is not yet owner-approved, invoke `grill` and record the intended outcome **before** creating implementation issues. For an existing issue with such a gap, report `needs owner decision`, retain `needs-decision` if work is blocked, and do not substitute an agent-chosen MVP. Routine fixes, clear follow-on work and behavior-preserving refactors bypass grilling.
+
 ## Decision Atlas
 
 When the owning repository has a Decision Atlas, treat it as the durable authority for **what the product should be**. Its semantic leaf entries are only **Decisions** and **Questions**; navigation branches are structure, not another entry kind.
 
-- Retrieve the Atlas entries relevant to the issue before making consequential product choices. Follow applicable Decisions.
+- Retrieve only relevant entries with `daq find` / `daq get` / `daq questions` when available, falling back to the committed Markdown. Follow applicable current Decisions; do not treat struck-through wording or a stale index as current.
 - An unanswered Question is not automatically blocking. Ask the owner **one question at a time** only when that Question materially affects the current task.
-- If preflight discovers a consequential fork not already settled, record it as a Question rather than silently choosing. Once the owner answers, preserve the Question and append a linked Decision; changed intent likewise appends a linked superseding Decision.
+- If a consequential fork is unsettled, record/reuse a Question rather than choosing silently. On owner approval, preserve the Question and append an `Answers` Decision. For changed intent, use inline `~~old~~ replacement` in the owning Atlas; retain IDs and existing `Supersedes` references.
 - Do not invent parallel Atlas kinds such as constraint, deferred decision, assumption, principle, or proposal. Express those meanings in Decision/Question text or relationships.
 - Issues remain work/acceptance records, not a second product-intent database. Reference Atlas IDs instead of copying durable product intent into issue prose when a reference is sufficient.
 
