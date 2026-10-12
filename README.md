@@ -12,10 +12,15 @@ Keep secrets, credentials, machine-specific paths, and Git identity out of the r
 
 New-machine setup should provide **one bootstrap command** with a preview/dry-run mode and
 an explicit apply mode. It covers the existing Git/home defaults, reusable Claude Code and
-Codex agent skills, and the `workctl` helper. It must be **non-destructive and idempotent**:
+Codex agent skills, the `workctl` helper, and **personal VS Code settings** using the
+preferences tracked in `.vscode/settings.json`. It must be **non-destructive and idempotent**:
 leave matching installations alone, refuse to overwrite unrelated files or symlinks, and
-show the complete proposed link plan before making changes. It must **not** automatically
-download dependencies, install packages, or introduce managed profiles.
+show the complete proposed setup plan before making changes. Existing personal VS Code
+preferences must be preserved rather than silently replaced or overridden. VS Code
+extensions remain recommendations; the bootstrap must **not** install them automatically.
+The exact non-destructive behavior for an already-existing personal VS Code settings file
+is still an open owner choice. The bootstrap must **not** automatically download
+dependencies, install packages, or introduce managed profiles.
 
 This is the approved target behavior, **not an available command yet**. Until implemented,
 use the separate setup procedures below.
