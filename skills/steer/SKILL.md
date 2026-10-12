@@ -35,6 +35,29 @@ contracts only when they affect the choice.
    scoring system or the oldest unanswered Question. Skip settled, irrelevant and routine
    technical choices. If nothing material needs the owner, say so and stop.
 
+## Product feature, not engineering hygiene
+
+The Atlas is organized by **product capabilities and user workflows**, not by development
+activities. Record a Decision/Question only for a consequential choice about the
+experience, supported input/output, user-visible behavior, product scope or a deliberate
+trade-off that the owner must control. Do not create a Decision merely stating that the
+product should be fast, tested, maintainable, reliable or high-quality.
+
+If an agreed experience is slow, broken or missing, route the concrete regression through
+the normal GitHub issue/acceptance process **without adding another Atlas entry**. For
+example, "dialogue takes two seconds to advance" is an actionable defect, not a new
+"quality dialogue" Decision. An explicit target behavior or chosen response-time
+trade-off may belong in the Atlas when there is a real product fork. Generic test/CI
+policy, implementation techniques and worker priorities stay in repository instructions,
+conventions, acceptance specifications and issues. Do not broaden steering's existing
+issue-write authorization: report or propose ordinary defects unless their issue write
+is separately authorized.
+
+When reorganizing an existing Atlas, prefer feature-oriented navigation and place
+Questions beside related Decisions. **Preserve stable IDs and historical intent** even
+when their original numbers no longer correspond to the containing heading. Do not
+silently delete or retire legacy engineering records while changing presentation.
+
 ## Guide one human action at a time
 
 Choose **one** of the following conversational actions. These are activities, **not**
