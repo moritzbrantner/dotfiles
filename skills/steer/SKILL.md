@@ -116,18 +116,19 @@ to skip issue changes or work read-only.
    current Decision links, bounded scope, explicit exclusions, a real user journey
    (or representative headless evidence), independent acceptance expectations, and
    native dependencies when needed. Create an issue only for uncovered, necessary,
-   actionable work. One issue should describe one coherent, independently verifiable
+   bounded work with settled owner intent. One issue should describe one coherent, independently verifiable
    slice; split only meaningful separate outcomes. Do not turn every Decision into
    an issue, create speculative infrastructure, or replace product intent with a
    smaller agent-selected MVP. Follow the owning repository's issue conventions.
-4. **Respect the Atlas merge boundary.** An explicit owner answer can be recorded in
-   a reviewable Atlas PR before that PR merges; it is not yet the authoritative
-   default-branch product source. You may reconcile GitHub issues immediately, but
-   link the exact pending Atlas PR and Decision IDs, and mark in each affected issue
-   body that **implementation must wait until the owning Atlas change merges**.
+4. **Respect the intent merge boundary.** An explicit owner answer can be recorded in
+   a reviewable Atlas or other authoritative product-document PR before that PR
+   merges; it is not yet the default-branch product source. You may reconcile GitHub
+   issues immediately, but link the exact pending intent PR and applicable Decision
+   IDs, and mark in each affected issue body that **implementation must wait until
+   the owning product-intent change merges**.
    Do not call those issues actionable yet, or misuse `needs-decision` for an
    already-answered question. `issue-preflight` and `work-loop` must recheck the
-   merged authoritative source before implementing. Do not auto-merge Atlas PRs.
+   merged authoritative source before implementing. Do not auto-merge intent PRs.
 5. **Keep the queue trustworthy.** Re-running `/steer` must be idempotent: refresh
    the current GitHub state, reconcile only actual differences, and report existing
    coverage instead of duplicating issues. Do not rewrite unrelated scope, close
@@ -136,7 +137,7 @@ to skip issue changes or work read-only.
    unresolved, preserve the relevant Question and refrain from creating that issue;
    continue reconciling unrelated settled work.
 6. **Report the handoff.** Name the Decisions reconciled, issues created/updated
-   versus already covered, any unmerged Atlas PRs that must land first, and any
+   versus already covered, any unmerged intent PRs that must land first, and any
    unperformed checks. If GitHub access fails, give a precise proposed change and
    state it was **not** written. There is no new issue queue, tracker, label or
    automatic implementation step.
