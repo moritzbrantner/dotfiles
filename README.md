@@ -18,8 +18,10 @@ show the complete proposed link plan before making changes. It must **not** auto
 download dependencies, install packages, or introduce managed profiles.
 
 This is the approved target behavior, **not an available command yet**. Until implemented,
-use the separate setup procedures below. The initial bootstrap supports **Linux and WSL**. **Native Windows support is a later
-planned expansion**, outside the first implementation slice; no delivery date is set.
+use the separate setup procedures below.
+
+The first bootstrap release supports **Linux and WSL**. **Native Windows support is planned
+for a later expansion** and is outside this implementation slice; no delivery date is set.
 
 ## Home-level defaults
 
