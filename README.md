@@ -44,6 +44,8 @@ Implementation work runs through one global loop over GitHub issues. Product dec
 human-facing entry point backed by the existing specialist skills, without another loop:
 
 - `skills/steer` — run `/steer` in the current repository to inspect authoritative intent, ask the next consequential owner question, record approved Decisions/Questions, and guide real-product acceptance. It reuses `grill`, `atlas-audit`, `unblock`, `issue-preflight`, and `acceptance-contract`; it never starts implementation on its own.
+
+**Flowcharts:** [human steering, skill routing, implementation and authority](docs/human-steering-flowcharts.md).
 - `skills/work-loop` — finish existing PRs, inspect repository-owned product acceptance evidence, pick an actionable blocker or urgent correctness issue, work in its repository by that repository's `AGENTS.md`, validate, update GitHub, repeat. Its `workctl.mjs` helper scans the open PR backlog, deterministically reports PR readiness, rejects stacked PR bases, and guards merges. A dependency on another repository becomes an issue there.
 - `skills/unblock` — resolve blocking Questions discovered during execution; record owner answers in the Atlas when present, then link and unblock the issue.
 - `skills/grill` — refine new product/major-feature direction **before** implementation issues; ask one consequential question at a time, then record concise Decisions/Questions in the owning Atlas when present (otherwise existing docs). Proactively use concrete illustrated A/B/C alternatives for unresolved visual choices.
