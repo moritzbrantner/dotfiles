@@ -8,6 +8,19 @@ This repository stores portable defaults that are useful across projects. Reposi
 
 Keep secrets, credentials, machine-specific paths, and Git identity out of the repository.
 
+## Bootstrap intent (owner-approved; not yet implemented)
+
+New-machine setup should provide **one bootstrap command** with a preview/dry-run mode and
+an explicit apply mode. It covers the existing Git/home defaults, reusable Claude Code and
+Codex agent skills, and the `workctl` helper. It must be **non-destructive and idempotent**:
+leave matching installations alone, refuse to overwrite unrelated files or symlinks, and
+show the complete proposed link plan before making changes. It must **not** automatically
+download dependencies, install packages, or introduce managed profiles.
+
+This is the approved target behavior, **not an available command yet**. Until implemented,
+use the separate setup procedures below. Platform coverage beyond the existing Linux/WSL
+home-link workflow is not decided by this choice.
+
 ## Home-level defaults
 
 - `.gitconfig` — fast-forward-only pulls, pruned fetches, automatic upstream setup, rerere, zdiff3 conflicts, histogram diffs, autostash for explicit rebases, and review-friendly commit/status defaults.
