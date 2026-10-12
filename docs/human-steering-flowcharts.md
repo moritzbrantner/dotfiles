@@ -52,9 +52,12 @@ flowchart TD
     ROUTE -->|Historical decisions or drift| AUDIT["atlas-audit: reconstruct evidence"]
     ROUTE -->|Issue awaits owner| UNBLOCK["unblock: resolve blocker"]
     ROUTE -->|Check product| VERIFY["Review real demo and evidence"]
-    GRILL --> ATLAS["Owning Decision Atlas or existing product docs"]
-    AUDIT --> ATLAS
-    UNBLOCK --> ATLAS
+    GRILL --> APPROVAL{"Owner-approved or historically evidenced intent?"}
+    AUDIT --> APPROVAL
+    UNBLOCK --> APPROVAL
+    APPROVAL -->|Yes| ATLAS["Owning Decision Atlas or existing product docs"]
+    APPROVAL -->|Unresolved| QUESTION["Keep Question open; never invent approval"]
+    QUESTION --> HUMAN
     VERIFY --> HUMAN
     ATLAS --> AUTHORIZE{"Issue changes authorized?"}
     AUTHORIZE -->|No| END(["Stop after recording direction"])
@@ -120,7 +123,7 @@ flowchart LR
     ATLAS -->|Stable IDs| ISSUES["GitHub issues: flat work queue"]
     ATLAS -->|Query derived index| DAQ["daq: retrieval, not authority"]
     DAQ --> AGENT["steer, issue-preflight, work-loop"]
-    AGENT -->|Approved scope| ISSUES
+    AGENT -->|Issue changes separately authorized| ISSUES
     ATLAS -->|Specifies outcomes| CONTRACT["Independent acceptance contract"]
     ISSUES --> PR["PRs and code: execution state"]
     CONTRACT -->|Defined before behavior changes| PR
