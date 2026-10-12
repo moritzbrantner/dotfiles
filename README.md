@@ -18,9 +18,14 @@ leave matching installations alone, refuse to overwrite unrelated files or symli
 show the complete proposed setup plan before making changes. Existing personal VS Code
 preferences must be preserved rather than silently replaced or overridden. VS Code
 extensions remain recommendations; the bootstrap must **not** install them automatically.
-The exact non-destructive behavior for an already-existing personal VS Code settings file
-is still an open owner choice. The bootstrap must **not** automatically download
-dependencies, install packages, or introduce managed profiles.
+
+**For an existing VS Code user `settings.json`, ask for explicit permission before merging
+missing preferences.** Show the proposed additions first; retain all existing values.
+If permission is declined, an interactive prompt is unavailable, or a safe merge cannot be
+guaranteed, **skip VS Code settings changes** and report the skip without blocking other
+safe setup steps. An absent settings file may be created during explicit bootstrap apply.
+The bootstrap must **not** automatically download dependencies, install packages, or
+introduce managed profiles.
 
 This is the approved target behavior, **not an available command yet**. Until implemented,
 use the separate setup procedures below.
