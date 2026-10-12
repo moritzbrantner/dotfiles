@@ -30,8 +30,11 @@ introduce managed profiles.
 This is the approved target behavior, **not an available command yet**. Until implemented,
 use the separate setup procedures below.
 
-The first bootstrap release supports **Linux and WSL**. **Native Windows support is planned
-for a later expansion** and is outside this implementation slice; no delivery date is set.
+The first bootstrap release supports **Linux and WSL**. When launched inside WSL, the
+VS Code preferences step targets **WSL-side settings only**. It must not modify or attempt
+to configure Windows-hosted VS Code user settings, even if Windows-hosted VS Code is the
+editor connected to WSL. **Native Windows and Windows-host settings support are planned
+for a later expansion**, outside this implementation slice; no delivery date is set.
 
 ## Home-level defaults
 
