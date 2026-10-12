@@ -45,13 +45,20 @@ human-facing entry point backed by the existing specialist skills, without anoth
 
 - `skills/steer` — run `/steer` in the current repository to inspect authoritative intent, ask the next consequential owner question, record approved Decisions/Questions, guide real-product acceptance, and **automatically reconcile necessary bounded GitHub issues** through `issue-preflight`. It reuses `grill`, `atlas-audit`, `unblock`, and `acceptance-contract`; it never starts implementation or merges PRs. Issues derived from unmerged Atlas PRs remain non-actionable until that source lands.
 
-**Flowcharts:** [human steering, skill routing, implementation and authority](docs/human-steering-flowcharts.md).
 - `skills/work-loop` — finish existing PRs, inspect repository-owned product acceptance evidence, pick an actionable blocker or urgent correctness issue, work in its repository by that repository's `AGENTS.md`, validate, update GitHub, repeat. Its `workctl.mjs` helper scans the open PR backlog, deterministically reports PR readiness, rejects stacked PR bases, and guards merges. A dependency on another repository becomes an issue there.
 - `skills/unblock` — resolve blocking Questions discovered during execution; record owner answers in the Atlas when present, then link and unblock the issue.
 - `skills/grill` — refine new product/major-feature direction **before** implementation issues; ask one consequential question at a time, then record concise Decisions/Questions in the owning Atlas when present (otherwise existing docs). Proactively use concrete illustrated A/B/C alternatives for unresolved visual choices.
 - `skills/atlas-audit` — audit important historical decisions and implementation drift, propose reviewable Atlas updates, and propose bounded issues for owner-approved changes; apply issue writes only when explicitly requested or within an authorized work loop.
 - `skills/issue-preflight` — translate approved direction into bounded, independently verifiable issues; if a major design choice is unresolved, route back to `grill` before implementation. Require owner-verifiable end-to-end product slices, not backend-only feature claims.
 - `skills/acceptance-contract` — for changes to behavior or architecture, hand off specification-based acceptance tests to an independent agent before implementation, protect behavioral assertions, and fail closed to full test execution when impact mapping is uncertain.
+
+**Default documentation model:** `AGENTS.md` defines repo-specific engineering boundaries;
+a feature-oriented Decision Atlas defines owner-approved product behavior and outstanding
+Questions; an ADR is **optional** for a non-obvious lasting architectural trade-off.
+Implementation belongs in code and tests, and GitHub issues contain the work to do.
+Do not require an ADR, design plan, or separate Markdown specification for routine changes.
+
+**Flowcharts:** [human steering, skill routing, implementation and authority](docs/human-steering-flowcharts.md).
 
 GitHub issues and pull requests are the only **execution state**. Product intent lives in the owning repository's Decision Atlas when present; roadmaps, ADRs and tests provide supporting detail without duplicating decision authority. Repositories keep their own instructions, conventions, tests and architecture; they do not define their own agent loops, claims, queues or status labels.
 
