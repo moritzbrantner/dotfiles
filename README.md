@@ -43,7 +43,7 @@ Copy or symlink these into a project when appropriate, then keep project-specifi
 Implementation work runs through one global loop over GitHub issues. Product decisions use one
 human-facing entry point backed by the existing specialist skills, without another loop:
 
-- `skills/steer` — run `/steer` in the current repository to inspect authoritative intent, ask the next consequential owner question, record approved Decisions/Questions, and guide real-product acceptance. It reuses `grill`, `atlas-audit`, `unblock`, `issue-preflight`, and `acceptance-contract`; it never starts implementation on its own.
+- `skills/steer` — run `/steer` in the current repository to inspect authoritative intent, ask the next consequential owner question, record approved Decisions/Questions, guide real-product acceptance, and **automatically reconcile necessary bounded GitHub issues** through `issue-preflight`. It reuses `grill`, `atlas-audit`, `unblock`, and `acceptance-contract`; it never starts implementation or merges PRs. Issues derived from unmerged Atlas PRs remain non-actionable until that source lands.
 
 **Flowcharts:** [human steering, skill routing, implementation and authority](docs/human-steering-flowcharts.md).
 - `skills/work-loop` — finish existing PRs, inspect repository-owned product acceptance evidence, pick an actionable blocker or urgent correctness issue, work in its repository by that repository's `AGENTS.md`, validate, update GitHub, repeat. Its `workctl.mjs` helper scans the open PR backlog, deterministically reports PR readiness, rejects stacked PR bases, and guards merges. A dependency on another repository becomes an issue there.
@@ -106,8 +106,9 @@ flowchart TD
 For a general human product-direction session, use `/steer` from a repository (for example,
 `/steer combat`). It inspects the current Atlas and product evidence, selects one useful
 **define / decide / approve / revise / verify** action, asks one question at a time, and records
-accepted intent without starting implementation. You can still invoke the specialist skills
-directly when you know which procedure is needed.
+accepted intent. It automatically updates existing relevant GitHub issues or creates only
+necessary bounded issues without an extra confirmation; implementation still runs separately
+through `/work-loop`. You can invoke specialist skills directly when needed.
 
 To define a new product or major feature, invoke `grill` first (for example, "/grill ARPG combat architecture"). It asks one consequential question at a time, normally 3–5 per session, with concrete illustrated A/B/C alternatives for visual choices, and persists the answers in the repository-owned Atlas when present. Use scoped `daq` queries to reuse settled decisions; when the tool is unavailable, read the relevant Markdown. Only then use `issue-preflight` to turn that direction into bounded implementation issues. During work, `unblock` is the fallback for genuinely new blocking Questions. Neither skill requires a new global database, label, or queue. The work loop also invokes `acceptance-contract` for behavior and architecture changes. Independent acceptance authorship is a procedural handoff, not something a commit author or code review alone can prove.
 
