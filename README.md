@@ -40,7 +40,10 @@ Copy or symlink these into a project when appropriate, then keep project-specifi
 
 **Design first for new products and major features:** `grill` → owning Decision Atlas / existing product docs → `issue-preflight` → implementation issues → `work-loop`. Already-specified work, routine bugs and refactors can enter the loop directly. No second scheduler or queue is needed.
 
-Implementation work runs through one global loop over GitHub issues. Design discussions use reusable skills without creating another loop:
+Implementation work runs through one global loop over GitHub issues. Product decisions use one
+human-facing entry point backed by the existing specialist skills, without another loop:
+
+- `skills/steer` — run `/steer` in the current repository to inspect authoritative intent, ask the next consequential owner question, record approved Decisions/Questions, guide real-product acceptance, and **automatically reconcile necessary bounded GitHub issues** through `issue-preflight`. It reuses `grill`, `atlas-audit`, `unblock`, and `acceptance-contract`; it never starts implementation or merges PRs. Issues derived from unmerged Atlas PRs remain non-actionable until that source lands.
 
 - `skills/work-loop` — finish existing PRs, inspect repository-owned product acceptance evidence, pick an actionable blocker or urgent correctness issue, work in its repository by that repository's `AGENTS.md`, validate, update GitHub, repeat. Its `workctl.mjs` helper scans the open PR backlog, deterministically reports PR readiness, rejects stacked PR bases, and guards merges. A dependency on another repository becomes an issue there.
 - `skills/unblock` — resolve blocking Questions discovered during execution; record owner answers in the Atlas when present, then link and unblock the issue.
@@ -48,6 +51,14 @@ Implementation work runs through one global loop over GitHub issues. Design disc
 - `skills/atlas-audit` — audit important historical decisions and implementation drift, propose reviewable Atlas updates, and propose bounded issues for owner-approved changes; apply issue writes only when explicitly requested or within an authorized work loop.
 - `skills/issue-preflight` — translate approved direction into bounded, independently verifiable issues; if a major design choice is unresolved, route back to `grill` before implementation. Require owner-verifiable end-to-end product slices, not backend-only feature claims.
 - `skills/acceptance-contract` — for changes to behavior or architecture, hand off specification-based acceptance tests to an independent agent before implementation, protect behavioral assertions, and fail closed to full test execution when impact mapping is uncertain.
+
+**Default documentation model:** `AGENTS.md` defines repo-specific engineering boundaries;
+a feature-oriented Decision Atlas defines owner-approved product behavior and outstanding
+Questions; an ADR is **optional** for a non-obvious lasting architectural trade-off.
+Implementation belongs in code and tests, and GitHub issues contain the work to do.
+Do not require an ADR, design plan, or separate Markdown specification for routine changes.
+
+**Flowcharts:** [human steering, skill routing, implementation and authority](docs/human-steering-flowcharts.md).
 
 GitHub issues and pull requests are the only **execution state**. Product intent lives in the owning repository's Decision Atlas when present; roadmaps, ADRs and tests provide supporting detail without duplicating decision authority. Repositories keep their own instructions, conventions, tests and architecture; they do not define their own agent loops, claims, queues or status labels.
 
@@ -98,6 +109,13 @@ flowchart TD
     classDef no fill:#fee2e2,stroke:#dc2626,stroke-width:2px,color:#111;
     classDef action fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111;
 ```
+
+For a general human product-direction session, use `/steer` from a repository (for example,
+`/steer combat`). It inspects the current Atlas and product evidence, selects one useful
+**define / decide / approve / revise / verify** action, asks one question at a time, and records
+accepted intent. It automatically updates existing relevant GitHub issues or creates only
+necessary bounded issues without an extra confirmation; implementation still runs separately
+through `/work-loop`. You can invoke specialist skills directly when needed.
 
 To define a new product or major feature, invoke `grill` first (for example, "/grill ARPG combat architecture"). It asks one consequential question at a time, normally 3–5 per session, with concrete illustrated A/B/C alternatives for visual choices, and persists the answers in the repository-owned Atlas when present. Use scoped `daq` queries to reuse settled decisions; when the tool is unavailable, read the relevant Markdown. Only then use `issue-preflight` to turn that direction into bounded implementation issues. During work, `unblock` is the fallback for genuinely new blocking Questions. Neither skill requires a new global database, label, or queue. The work loop also invokes `acceptance-contract` for behavior and architecture changes. Independent acceptance authorship is a procedural handoff, not something a commit author or code review alone can prove.
 
