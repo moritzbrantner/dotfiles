@@ -32,7 +32,7 @@ flowchart TD
     NEEDED -->|Yes| MERGED{"Owning Atlas change merged?"}
     MERGED -->|Yes| ISSUE["Update existing or create bounded issue"]
     MERGED -->|Not yet| PENDING["Reconcile issue, but block implementation until Atlas PR merges"]
-    ISSUE --> MORE
+    ISSUE --> MORE{"Another consequential gap?"}
     PENDING --> MORE
     QUESTION --> MORE
     FEEDBACK --> MORE
@@ -60,7 +60,7 @@ flowchart TD
     ROUTE -->|Historical decisions or drift| AUDIT["atlas-audit: reconstruct evidence"]
     ROUTE -->|Issue awaits owner| UNBLOCK["unblock: resolve blocker"]
     ROUTE -->|Check product| VERIFY["Review real demo and evidence"]
-    GRILL --> APPROVAL{"Owner-approved or historically evidenced intent?"}
+    GRILL --> APPROVAL{"Explicitly owner-approved now or previously?"}
     AUDIT --> APPROVAL
     UNBLOCK --> APPROVAL
     APPROVAL -->|Yes| ATLAS["Owning Decision Atlas or existing product docs"]
@@ -74,13 +74,15 @@ flowchart TD
     ISSUES --> END
     END -.->|Separately invoked later| LOOP["/work-loop: implementation"]
     LOOP -->|New blocking Question| UNBLOCK
-    LOOP --> CONTRACT["acceptance-contract: independent checks before code"]
-    CONTRACT --> BUILD["One implementation worker per repository"]
+    LOOP --> QUALIFY{"Behavior or architecture change?"}
+    QUALIFY -->|Yes| CONTRACT["acceptance-contract: independent checks before code"]
+    QUALIFY -->|No, preserved| BUILD["One implementation worker per repository"]
+    CONTRACT --> BUILD
     BUILD --> VERIFY
 ```
 
-`atlas-audit` is investigative; it does not make historical agent assumptions into owner
-decisions. `unblock` is the fallback for questions discovered while working. New major
+`atlas-audit` is investigative; implementation history or an agent proposal is not owner
+approval, even when historically evidenced. `unblock` is the fallback for questions discovered while working. New major
 features go through `grill` **before** implementation. `issue-preflight` automatically
 reconciles approved steering Decisions, but cannot start `work-loop` or make speculative
 issues. An issue linked to an unmerged Atlas PR is not yet actionable.
@@ -95,7 +97,7 @@ as a simultaneous competing writer.
 ```mermaid
 flowchart TD
     START(["work-loop: next natural scan"]) --> EXIST{"Open PR or live verification handoff?"}
-    EXIST -->|Yes| RESUME["Finish or repair PR, satisfy gates, verify deployment"]
+    EXIST -->|Yes| RESUME["Finish or repair PR; verify deployment only when promised"]
     RESUME --> START
     EXIST -->|No| PICK{"Actionable evidenced issue?"}
     PICK -->|No| BLOCK{"An owner question blocks work?"}
@@ -109,21 +111,28 @@ flowchart TD
     SOURCE -->|Yes| Q{"Consequential choice unresolved?"}
     Q -->|Yes| PARK["Keep needs-decision; work elsewhere"]
     PARK --> START
-    Q -->|No| CONTRACT["acceptance-contract: independent tests first"]
-    CONTRACT --> IMPLEMENT["One worker implements a bounded slice"]
+    Q -->|No| CHANGE{"Behavior or architecture change?"}
+    CHANGE -->|Yes| CONTRACT["acceptance-contract: independent tests first"]
+    CHANGE -->|No, truly preserved| IMPLEMENT["One worker implements a bounded slice"]
+    CONTRACT --> IMPLEMENT
     IMPLEMENT --> CHECK["Affected tests, browser preview, CI, targeted review"]
     CHECK --> PASS{"All gates pass?"}
     PASS -->|No| IMPLEMENT
     PASS -->|Yes| MERGE["Guarded merge"]
-    MERGE --> LIVE{"Published scenario verified?"}
-    LIVE -->|Yes| EVIDENCE["Record live revision and acceptance evidence"]
+    MERGE --> LIVE_NEEDED{"Post-merge publication promised?"}
+    LIVE_NEEDED -->|Yes| LIVE{"Published scenario verified?"}
+    LIVE_NEEDED -->|No| EVIDENCE["Record applicable acceptance evidence"]
+    LIVE -->|Yes| EVIDENCE
     LIVE -->|No or pending| REOPEN["Keep or reopen original issue with evidence gap"]
     EVIDENCE --> START
     REOPEN --> START
 ```
 
 `workctl` checks mechanical PR readiness; it cannot approve product intent. The owning
-Atlas Decision must already be merged before its issue becomes actionable. A merged feature
+Atlas Decision must already be merged before its issue becomes actionable. Independent
+acceptance authorship is required for behavior or architecture changes, not a genuinely
+behavior-preserving refactor. Post-merge live verification applies only when the issue
+contract promises a published scenario. A merged feature
 or green unit suite is not evidence that the published end-to-end scenario works. If the
 live check is missing, stale, failing or still publishing, preserve the issue and evidence
 for the next natural scan; do not poll or declare success prematurely. If a slice is
