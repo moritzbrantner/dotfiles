@@ -1,0 +1,129 @@
+---
+name: steer
+description: Guide the repository owner through consequential product definitions, decisions, approvals, revisions, and real-product checks, one question at a time. Reuse the Decision Atlas and existing skills.
+---
+
+# Steer
+
+The **single human-facing entry point** for product direction in the current repository.
+The owner defines and approves intent; agents investigate, propose, record and verify it.
+This is not a second work loop, issue queue, schema, or implementation worker.
+
+Run `/steer` from a repository, optionally adding a feature or subsystem.
+A request like "steer this repository" is equivalent when slash skills are unavailable.
+Keep the scope to that repository or one named subsystem; follow relevant cross-repository
+contracts only when they affect the choice.
+
+## Orient before asking
+
+1. Read the current repository's `AGENTS.md`, nested instructions for affected paths,
+   installed/pinned conventions, and existing product documents. Follow local authority.
+2. Read the owning Decision Atlas, if present. Prefer scoped `daq find`, `daq get` and
+   `daq questions` when available; verify important findings in committed source, especially
+   when an index could be stale. Review relevant open Atlas-documentation PRs to avoid duplicates.
+   Without an Atlas, use the repository's existing authoritative documents; do not force a
+   migration or invent a parallel product authority.
+3. Inspect only the relevant vision, scenarios, ADRs, issues, PR discussions, acceptance
+   evidence, and implementation. For visual products, examine the real Pages/demo experience
+   when tools permit. Distinguish *owner-approved intent*, *agent proposals*, *implemented
+   behavior*, *test evidence*, and *human acceptance*. Code or a merged PR is not product
+   approval; green CI does not establish the intended user experience.
+4. Identify the most consequential gaps in the current product or milestone, without
+   creating a durable inventory. Prioritize an evidenced mismatch or unverified essential
+   user journey, a conflicting settled decision, or an unresolved choice that can send
+   implementation in the wrong direction. Use established owner priority, not an arbitrary
+   scoring system or the oldest unanswered Question. Skip settled, irrelevant and routine
+   technical choices. If nothing material needs the owner, say so and stop.
+
+## Guide one human action at a time
+
+Choose **one** of the following conversational actions. These are activities, **not**
+new Decision Atlas entry types or GitHub labels.
+
+- **Define:** Elicit the intended end state or representative user workflow, including
+  what the user sees/does, important exclusions and the quality floor. Ask for reference
+  examples only when they resolve actual ambiguity. Do not shrink the vision to an
+  agent-selected MVP.
+- **Decide:** Present an existing consequential Question or a newly discovered fork.
+  Explain why the choice matters and offer 2–3 genuinely different A/B/C outcomes with
+  brief trade-offs and a grounded recommendation when useful. An open answer is valid.
+- **Approve:** Show the exact proposed product statement, scenario or acceptance criterion,
+  its affected scope and any material consequences. Ask whether to accept, adjust or
+  defer it. Never call an agent suggestion owner-approved without an explicit answer.
+- **Revise:** Cite the current Decision ID and the observed conflict or changed goal;
+  ask what behavior should replace it. Do not infer a revision from code drift.
+- **Verify:** Show the actual demo/preview URL or runnable scenario, revision when known,
+  steps to try and observed evidence. Ask whether that behavior matches the owner's
+  intended experience. If not, elicit the specific mismatch before proposing fixes.
+  An unexecuted test or unavailable demo is **missing evidence**, not a pass.
+
+For every turn, give only the necessary context, the relevant existing Atlas ID or
+evidence reference, the consequence of the choice, and **one question**. Prefer
+concrete user-observable examples to abstract design jargon. In voice/driving mode,
+keep the options short and self-contained; images and code must not be required.
+`skip` or `later` retains a nonblocking Question; `I don't care` delegates a
+routine implementation detail, not a consequential product decision.
+
+## Record the owner's answer
+
+1. Treat the owner's explicit answer as the authorization to record **that answer**;
+   do not ask for a redundant second confirmation. State uncertainty when the response
+   does not settle the choice. Never invent owner approval from tests, code, chat
+   suggestions or a proposed PR.
+2. Persist the choice in the **owning repository**, following its existing Atlas format.
+   By default the only semantic leaves are **Decision** and **Question**. Preserve stable
+   IDs and navigation hierarchy. When answering a Question, keep it and append a new
+   Decision with `Answers <question-id>`. To revise a Decision, preserve its ID and
+   use the repository's established revision syntax (currently inline
+   `~~old wording~~ replacement` in default Atlases); never silently renumber.
+   Keep accepted rationale, non-goals and acceptance examples concise. Without an
+   Atlas, edit existing authoritative product docs instead.
+3. For a new product with no stable source of intent, use `grill` to establish the
+   direction and propose one repository-owned Atlas only when appropriate. Do not
+   install a universal schema or duplicate existing vision/ADR authority.
+4. Link relevant issue/PR, scenario, test or stable file+symbol references. Record what
+   is proposed, accepted, deferred, unimplemented or unverified **without turning those
+   into new Atlas entry types**. Human sign-off and executable/browser evidence are
+   different records; neither can impersonate the other.
+5. Make approved documentation changes reviewable in the repository's normal branch/PR
+   workflow; do not auto-merge. If write access or required evidence is unavailable,
+   provide a precise proposed patch and say what was **not** persisted or verified.
+   Before asking the next question, ensure the previous answer is recorded or clearly
+   disclose the failed write. Do not silently proceed with an unrecorded premise.
+
+## Reuse specialist skills; do not recreate them
+
+- `grill`: new product/major-feature design and multiple consequential choices.
+- `atlas-audit`: reconstruct historical intent or diagnose implementation drift.
+- `unblock`: an active issue explicitly waiting for an owner decision.
+- `issue-preflight`: turn *approved* direction into a bounded, observable issue.
+- `acceptance-contract`: independent acceptance handoff before behavior or architecture
+  implementation, when implementation is separately authorized.
+- `work-loop`: implementation, validation, review and merge **after** direction is settled.
+
+Steering alone does **not** authorize issue creation or issue rewrites, implementation,
+merges or publication. Propose affected issues and tests; change GitHub execution state
+only when the owner explicitly asks or an existing authorized work loop permits it.
+Keep GitHub issues a mostly flat queue, one implementation worker per repository,
+and the Atlas the single authority for product intent.
+
+## Continue or finish
+
+Normally ask 3–5 useful questions per session at most; continue longer only at the
+owner's request, and stop immediately if they say to stop. After each answer, find
+the next highest-impact *unresolved* human action instead of mechanically iterating
+every Question. If no decision is necessary, offer a concrete acceptance scenario
+to inspect, or end the session.
+
+Summarize recorded Decision/Question IDs and links, proposed or verified acceptance,
+any reviewable changes, remaining consequential gaps, and the next executable step.
+Report what was **not** checked or approved. Do not report completion from issue counts.
+
+## Invocation
+
+- **Claude Code / Codex:** `/steer` or `/steer <subsystem>` with this directory
+  linked into the agent's skills directory as described in `dotfiles/README.md`.
+- **ChatGPT with GitHub:** "Follow the `steer` skill from
+  `moritzbrantner/dotfiles/skills/steer/SKILL.md` for <repository>; ask me the next
+  consequential product question." Read the current skill source. A GitHub file is
+  not automatically a native ChatGPT slash command.
