@@ -29,8 +29,8 @@ flowchart TD
     PERSIST --> PREF["issue-preflight: reconcile approved decisions"]
     PREF --> NEEDED{"Necessary uncovered work?"}
     NEEDED -->|No| MORE
-    NEEDED -->|Yes| MERGED{"Owning Atlas change merged?"}
-    MERGED -->|Yes| ISSUE["Update existing or create bounded issue"]
+    NEEDED -->|Yes| MERGED{"Required intent change authoritative?"}
+    MERGED -->|Yes or not applicable| ISSUE["Update existing or create bounded issue"]
     MERGED -->|Not yet| PENDING["Reconcile issue, but block implementation until Atlas PR merges"]
     ISSUE --> MORE{"Another consequential gap?"}
     PENDING --> MORE
@@ -105,10 +105,10 @@ flowchart TD
     UNBLOCK --> START
     BLOCK -->|No| END(["No actionable work: stop"])
     PICK -->|Yes| PREF["issue-preflight: Atlas and scoped daq"]
-    PREF --> SOURCE{"Owning Atlas change merged?"}
-    SOURCE -->|No| HOLD["Keep affected issue pending; do not implement"]
+    PREF --> SOURCE{"Required intent change still unmerged?"}
+    SOURCE -->|Yes| HOLD["Keep affected issue pending; do not implement"]
     HOLD --> START
-    SOURCE -->|Yes| Q{"Consequential choice unresolved?"}
+    SOURCE -->|No or not applicable| Q{"Consequential choice unresolved?"}
     Q -->|Yes| PARK["Keep needs-decision; work elsewhere"]
     PARK --> START
     Q -->|No| CHANGE{"Behavior or architecture change?"}
@@ -128,8 +128,8 @@ flowchart TD
     REOPEN --> START
 ```
 
-`workctl` checks mechanical PR readiness; it cannot approve product intent. The owning
-Atlas Decision must already be merged before its issue becomes actionable. Independent
+`workctl` checks mechanical PR readiness; it cannot approve product intent. Any required owning product-intent change must already be merged before its issue
+becomes actionable. Independent
 acceptance authorship is required for behavior or architecture changes, not a genuinely
 behavior-preserving refactor. Post-merge live verification applies only when the issue
 contract promises a published scenario. A merged feature
@@ -167,7 +167,7 @@ rather than imposing a competing Atlas.
 Launch `/steer`, answer one concrete product question (or try one real scenario), and
 adjust or approve the outcome. The agent records approved intent in a reviewable
 repository change and **automatically reconciles only necessary bounded GitHub issues**.
-Issues referencing unmerged Atlas PRs remain non-actionable until that source merges.
+Issues referencing unmerged product-intent PRs remain non-actionable until that source merges.
 A separately invoked `/work-loop` then handles implementation, technical verification,
 review, guarded merge and published-scenario checks. If the visible result is wrong, return to `/steer` to
 distinguish changed intent from defective implementation.
