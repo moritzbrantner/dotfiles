@@ -58,6 +58,27 @@ Questions beside related Decisions. **Preserve stable IDs and historical intent*
 when their original numbers no longer correspond to the containing heading. Do not
 silently delete or retire legacy engineering records while changing presentation.
 
+## Minimal durable documentation
+
+Prefer **two default documents** in an owning product repository: the feature-oriented
+Decision Atlas (what the product should do, with owner-approved Decisions and relevant
+Questions) and `AGENTS.md` (repository-specific architecture, constraints and working
+rules, alongside installed shared conventions). An **ADR is optional** when a consequential,
+non-obvious engineering trade-off needs enduring rationale that cannot be communicated
+clearly in `AGENTS.md`, tests or code.
+
+Implementation details belong in code, types and tests; GitHub issues describe work and
+defects, not permanent architecture authority. When a finished issue exposes an invariant
+that future workers must preserve, put the constraint in code/tests or `AGENTS.md`. Do
+not require a separate plan, spec file, ADR, roadmap, or code-symbol cross-reference
+for every decision or feature. Reuse existing project documentation where genuinely
+useful, without creating duplicate authorities.
+
+When the repository uses checkbox Atlas entries, respect its semantics: `[x]` may
+mean **owner-approved**, not implemented. Always consult that repository's actual
+authoring rules and parser capabilities. A currently unindexed source remains the
+authority; do not silently invent DAQ support or an implementation claim.
+
 ## Guide one human action at a time
 
 Choose **one** of the following conversational actions. These are activities, **not**
@@ -96,18 +117,21 @@ routine implementation detail, not a consequential product decision.
 2. Persist the choice in the **owning repository**, following its existing Atlas format.
    By default the only semantic leaves are **Decision** and **Question**. Preserve stable
    IDs and navigation hierarchy. When answering a Question, keep it and append a new
-   Decision with `Answers <question-id>`. To revise a Decision, preserve its ID and
-   use the repository's established revision syntax (currently inline
-   `~~old wording~~ replacement` in default Atlases); never silently renumber.
+   Decision with `Answers <question-id>`. For revisions, preserve historical IDs
+   and follow the owning Atlas convention (for example, a new linked `Supersedes` Decision
+   or an explicit inline strikethrough where the local format permits it). Never
+   silently renumber, overwrite, or infer owner approval.
    Keep accepted rationale, non-goals and acceptance examples concise. Without an
    Atlas, edit existing authoritative product docs instead.
 3. For a new product with no stable source of intent, use `grill` to establish the
    direction and propose one repository-owned Atlas only when appropriate. Do not
    install a universal schema or duplicate existing vision/ADR authority.
-4. Link relevant issue/PR, scenario, test or stable file+symbol references. Record what
-   is proposed, accepted, deferred, unimplemented or unverified **without turning those
-   into new Atlas entry types**. Human sign-off and executable/browser evidence are
-   different records; neither can impersonate the other.
+4. Link relevant issues, PRs or acceptance scenarios when that materially clarifies
+   authority or verification. Do not require manually maintained code-symbol links in
+   the Atlas; derive reverse traceability from stable IDs, actual code and tests when
+   useful. Record what is proposed, accepted, deferred, unimplemented or unverified
+   **without turning those into new Atlas entry types**. Human sign-off and
+   executable/browser evidence are different records; neither can impersonate the other.
 5. Make approved documentation changes reviewable in the repository's normal branch/PR
    workflow; do not auto-merge. If write access or required evidence is unavailable,
    provide a precise proposed patch and say what was **not** persisted or verified.
