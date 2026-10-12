@@ -1,6 +1,6 @@
 ---
 name: steer
-description: Guide the repository owner through consequential product definitions, decisions, approvals, revisions, and real-product checks, one question at a time. Reuse the Decision Atlas and existing skills.
+description: Guide owner product decisions and verification; automatically reconcile approved intent into bounded GitHub issues without starting implementation.
 ---
 
 # Steer
@@ -91,32 +91,85 @@ routine implementation detail, not a consequential product decision.
    Before asking the next question, ensure the previous answer is recorded or clearly
    disclose the failed write. Do not silently proceed with an unrecorded premise.
 
+## Automatically reconcile approved decisions into GitHub issues
+
+The owner explicitly authorized `/steer` to **create or update necessary implementation
+issues automatically** for decisions approved in steering sessions. This is standing
+authorization for issue reconciliation, **not** permission to implement, merge or deploy.
+Do not ask "Shall I create issues?" after each session. Honor a specific instruction
+to skip issue changes or work read-only.
+
+1. **Trigger on durable answers.** After an approved Decision is recorded in the owning
+   Atlas or authoritative product documentation, reconcile its implementation coverage
+   before asking the next question or ending the current turn. Batch answers from the
+   same uninterrupted turn when useful, but do not depend on an explicit end-of-session
+   command or a later agent remembering the conversation. An undecided Question, a
+   suggestion, or a failed documentation write does **not** authorize a new issue.
+2. **Search before writing.** Inspect relevant current code and product acceptance
+   evidence, existing **open and closed** GitHub issues, open/merged PRs, and the
+   applicable Atlas Decision IDs. Match by promised user-observable outcome as well as
+   IDs; one issue can cover several Decisions. Do not create issues for context-only
+   decisions, deferred possibilities, already-covered work, or behavior already
+   implemented **and independently evidenced**. An unverified existing implementation
+   needs acceptance evidence, not an automatic duplicate implementation issue.
+3. **Use `issue-preflight`.** Prefer updating the **existing relevant issue** with
+   current Decision links, bounded scope, explicit exclusions, a real user journey
+   (or representative headless evidence), independent acceptance expectations, and
+   native dependencies when needed. Create an issue only for uncovered, necessary,
+   actionable work. One issue should describe one coherent, independently verifiable
+   slice; split only meaningful separate outcomes. Do not turn every Decision into
+   an issue, create speculative infrastructure, or replace product intent with a
+   smaller agent-selected MVP. Follow the owning repository's issue conventions.
+4. **Respect the Atlas merge boundary.** An explicit owner answer can be recorded in
+   a reviewable Atlas PR before that PR merges; it is not yet the authoritative
+   default-branch product source. You may reconcile GitHub issues immediately, but
+   link the exact pending Atlas PR and Decision IDs, and mark in each affected issue
+   body that **implementation must wait until the owning Atlas change merges**.
+   Do not call those issues actionable yet, or misuse `needs-decision` for an
+   already-answered question. `issue-preflight` and `work-loop` must recheck the
+   merged authoritative source before implementing. Do not auto-merge Atlas PRs.
+5. **Keep the queue trustworthy.** Re-running `/steer` must be idempotent: refresh
+   the current GitHub state, reconcile only actual differences, and report existing
+   coverage instead of duplicating issues. Do not rewrite unrelated scope, close
+   issues just because a Decision changed, or disturb unrelated native dependencies.
+   If an owning repo, material acceptance condition or cross-repository contract is
+   unresolved, preserve the relevant Question and refrain from creating that issue;
+   continue reconciling unrelated settled work.
+6. **Report the handoff.** Name the Decisions reconciled, issues created/updated
+   versus already covered, any unmerged Atlas PRs that must land first, and any
+   unperformed checks. If GitHub access fails, give a precise proposed change and
+   state it was **not** written. There is no new issue queue, tracker, label or
+   automatic implementation step.
+
 ## Reuse specialist skills; do not recreate them
 
 - `grill`: new product/major-feature design and multiple consequential choices.
 - `atlas-audit`: reconstruct historical intent or diagnose implementation drift.
 - `unblock`: an active issue explicitly waiting for an owner decision.
-- `issue-preflight`: turn *approved* direction into a bounded, observable issue.
+- `issue-preflight`: automatically reconcile approved intent into existing or necessary new bounded, observable issues.
 - `acceptance-contract`: independent acceptance handoff before behavior or architecture
   implementation, when implementation is separately authorized.
 - `work-loop`: implementation, validation, review and merge **after** direction is settled.
 
-Steering alone does **not** authorize issue creation or issue rewrites, implementation,
-merges or publication. Propose affected issues and tests; change GitHub execution state
-only when the owner explicitly asks or an existing authorized work loop permits it.
-Keep GitHub issues a mostly flat queue, one implementation worker per repository,
-and the Atlas the single authority for product intent.
+The owner's standing authorization covers only the issue reconciliation described
+above. Starting `work-loop`, changing product behavior, merging PRs or publishing
+requires its own authorized execution context. Keep GitHub issues a mostly flat queue,
+one implementation worker per repository, and the Atlas the single authority for
+product intent.
 
 ## Continue or finish
 
 Normally ask 3–5 useful questions per session at most; continue longer only at the
-owner's request, and stop immediately if they say to stop. After each answer, find
-the next highest-impact *unresolved* human action instead of mechanically iterating
+owner's request, and stop immediately if they say to stop. After each approved
+answer, reconcile implementation issues as above before moving on; never make
+the owner remember a separate "create issues" instruction. Then find the next
+highest-impact *unresolved* human action instead of mechanically iterating
 every Question. If no decision is necessary, offer a concrete acceptance scenario
 to inspect, or end the session.
 
-Summarize recorded Decision/Question IDs and links, proposed or verified acceptance,
-any reviewable changes, remaining consequential gaps, and the next executable step.
+Summarize recorded Decision/Question IDs and links, issues created/updated/already
+covered, pending Atlas merges, proposed or verified acceptance, remaining consequential
+gaps, and the next executable step.
 Report what was **not** checked or approved. Do not report completion from issue counts.
 
 ## Invocation
