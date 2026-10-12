@@ -26,7 +26,14 @@ flowchart TD
     MATCH -->|No| CAUSE{"Product definition or implementation?"}
     CAUSE -->|Definition| ASK
     CAUSE -->|Implementation| PROPOSE["Propose issue or acceptance correction"]
-    PERSIST --> MORE{"Another consequential gap?"}
+    PERSIST --> PREF["issue-preflight: reconcile approved decisions"]
+    PREF --> NEEDED{"Necessary uncovered work?"}
+    NEEDED -->|No| MORE
+    NEEDED -->|Yes| MERGED{"Owning Atlas change merged?"}
+    MERGED -->|Yes| ISSUE["Update existing or create bounded issue"]
+    MERGED -->|Not yet| PENDING["Reconcile issue, but block implementation until Atlas PR merges"]
+    ISSUE --> MORE
+    PENDING --> MORE
     QUESTION --> MORE
     FEEDBACK --> MORE
     PROPOSE --> MORE
@@ -37,8 +44,9 @@ flowchart TD
 
 `Define`, `decide`, `approve`, and `revise` change **intent** when you answer. `Verify`
 checks the actual product against that intent. An implementation mismatch proposes a
-correction; it does **not** automatically change your Decisions. Answering a question
-authorizes recording that answer, not automatically creating issues, merging or deploying.
+correction; it does **not** automatically change your Decisions. Recording an approved
+answer also authorizes **automatic issue reconciliation**. It does not authorize
+implementation, merging or deploying.
 
 ## 2. Which skills are used?
 
@@ -59,11 +67,12 @@ flowchart TD
     APPROVAL -->|Unresolved| QUESTION["Keep Question open; never invent approval"]
     QUESTION --> HUMAN
     VERIFY --> HUMAN
-    ATLAS --> AUTHORIZE{"Issue changes authorized?"}
-    AUTHORIZE -->|No| END(["Stop after recording direction"])
-    AUTHORIZE -->|Yes| PREF["issue-preflight: bound the outcome"]
-    PREF --> ISSUES["GitHub issues: execution queue"]
-    ISSUES --> LOOP["work-loop: execute existing work"]
+    ATLAS --> PREF["issue-preflight: auto reconcile approved intent"]
+    PREF --> NEED{"Necessary issue changes?"}
+    NEED -->|No| END(["Finish steering"])
+    NEED -->|Yes| ISSUES["Update or create bounded GitHub issues"]
+    ISSUES --> END
+    END -.->|Separately invoked later| LOOP["/work-loop: implementation"]
     LOOP -->|New blocking Question| UNBLOCK
     LOOP --> CONTRACT["acceptance-contract: independent checks before code"]
     CONTRACT --> BUILD["One implementation worker per repository"]
@@ -72,8 +81,9 @@ flowchart TD
 
 `atlas-audit` is investigative; it does not make historical agent assumptions into owner
 decisions. `unblock` is the fallback for questions discovered while working. New major
-features go through `grill` **before** implementation. `issue-preflight` only changes issues
-when explicitly requested or already authorized by the work loop.
+features go through `grill` **before** implementation. `issue-preflight` automatically
+reconciles approved steering Decisions, but cannot start `work-loop` or make speculative
+issues. An issue linked to an unmerged Atlas PR is not yet actionable.
 
 ## 3. The agent implementation loop
 
@@ -93,7 +103,10 @@ flowchart TD
     UNBLOCK --> START
     BLOCK -->|No| END(["No actionable work: stop"])
     PICK -->|Yes| PREF["issue-preflight: Atlas and scoped daq"]
-    PREF --> Q{"Consequential choice unresolved?"}
+    PREF --> SOURCE{"Owning Atlas change merged?"}
+    SOURCE -->|No| HOLD["Keep affected issue pending; do not implement"]
+    HOLD --> START
+    SOURCE -->|Yes| Q{"Consequential choice unresolved?"}
     Q -->|Yes| PARK["Keep needs-decision; work elsewhere"]
     PARK --> START
     Q -->|No| CONTRACT["acceptance-contract: independent tests first"]
@@ -109,7 +122,8 @@ flowchart TD
     REOPEN --> START
 ```
 
-`workctl` checks mechanical PR readiness; it cannot approve product intent. A merged feature
+`workctl` checks mechanical PR readiness; it cannot approve product intent. The owning
+Atlas Decision must already be merged before its issue becomes actionable. A merged feature
 or green unit suite is not evidence that the published end-to-end scenario works. If the
 live check is missing, stale, failing or still publishing, preserve the issue and evidence
 for the next natural scan; do not poll or declare success prematurely. If a slice is
@@ -143,7 +157,8 @@ rather than imposing a competing Atlas.
 
 Launch `/steer`, answer one concrete product question (or try one real scenario), and
 adjust or approve the outcome. The agent records approved intent in a reviewable
-repository change. Creating implementation issues is a **separate authorized handoff**.
-The work loop then handles implementation, technical verification, review, guarded merge
-and published-scenario checks. If the visible result is wrong, return to `/steer` to
+repository change and **automatically reconciles only necessary bounded GitHub issues**.
+Issues referencing unmerged Atlas PRs remain non-actionable until that source merges.
+A separately invoked `/work-loop` then handles implementation, technical verification,
+review, guarded merge and published-scenario checks. If the visible result is wrong, return to `/steer` to
 distinguish changed intent from defective implementation.
