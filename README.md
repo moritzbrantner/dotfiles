@@ -18,8 +18,8 @@ show the complete proposed link plan before making changes. It must **not** auto
 download dependencies, install packages, or introduce managed profiles.
 
 This is the approved target behavior, **not an available command yet**. Until implemented,
-use the separate setup procedures below. Platform coverage beyond the existing Linux/WSL
-home-link workflow is not decided by this choice.
+use the separate setup procedures below. The initial bootstrap supports **Linux and WSL**. **Native Windows support is a later
+planned expansion**, outside the first implementation slice; no delivery date is set.
 
 ## Home-level defaults
 
