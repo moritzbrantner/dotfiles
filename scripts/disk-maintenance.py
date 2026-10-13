@@ -470,8 +470,9 @@ def main():
         return run_disposable(config, args.command, home)
     with ExitStack() as stack:
         if args.apply:
-            cache = Path(os.environ.get("XDG_CACHE_HOME", home / ".cache"))
-            lock = safe_path(cache / "coding-agent-builds/.maintenance.lock", home)
+            # Timer and interactive callers may inherit different XDG settings;
+            # one fixed per-user lock serializes their overlapping cleanup roots.
+            lock = safe_path(home / ".cache/coding-agent-builds/.maintenance.lock", home)
             lock.parent.mkdir(parents=True, exist_ok=True)
             fd = os.open(lock, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
             stack.callback(os.close, fd)
