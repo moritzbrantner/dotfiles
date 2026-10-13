@@ -8,33 +8,36 @@ This repository stores portable defaults that are useful across projects. Reposi
 
 Keep secrets, credentials, machine-specific paths, and Git identity out of the repository.
 
-## Bootstrap intent (owner-approved; not yet implemented)
+## Safe one-command bootstrap (Linux and WSL)
 
-New-machine setup should provide **one bootstrap command** with a preview/dry-run mode and
-an explicit apply mode. It covers the existing Git/home defaults, reusable Claude Code and
-Codex agent skills, the `workctl` helper, and **personal VS Code settings** using the
-preferences tracked in `.vscode/settings.json`. It must be **non-destructive and idempotent**:
-leave matching installations alone, refuse to overwrite unrelated files or symlinks, and
-show the complete proposed setup plan before making changes. Existing personal VS Code
-preferences must be preserved rather than silently replaced or overridden. VS Code
-extensions remain recommendations; the bootstrap must **not** install them automatically.
+From this repository, preview the complete setup before installing anything:
 
-**For an existing VS Code user `settings.json`, ask for explicit permission before merging
-missing preferences.** Show the proposed additions first; retain all existing values.
-If permission is declined, an interactive prompt is unavailable, or a safe merge cannot be
-guaranteed, **skip VS Code settings changes** and report the skip without blocking other
-safe setup steps. An absent settings file may be created during explicit bootstrap apply.
-The bootstrap must **not** automatically download dependencies, install packages, or
-introduce managed profiles.
+```sh
+node scripts/bootstrap.mjs --dry-run
+node scripts/bootstrap.mjs --apply
+```
 
-This is the approved target behavior, **not an available command yet**. Until implemented,
-use the separate setup procedures below.
+The bootstrap plans all existing Git, EditorConfig, Claude Code and Codex skills, and
+`workctl` links before changing the filesystem. It refuses any conflicting file or
+symlink **before creating links**, leaves correctly installed links alone, and is
+idempotent. It never installs packages, fetches dependencies, publishes, or auto-installs
+VS Code extensions. Preview never changes files.
 
-The first bootstrap release supports **Linux and WSL**. When launched inside WSL, the
-VS Code preferences step targets **WSL-side settings only**. It must not modify or attempt
-to configure Windows-hosted VS Code user settings, even if Windows-hosted VS Code is the
-editor connected to WSL. **Native Windows and Windows-host settings support are planned
-for a later expansion**, outside this implementation slice; no delivery date is set.
+It also sets up the tracked **personal VS Code preferences**:
+
+- Native Linux: `~/.config/Code/User/settings.json` (or `$XDG_CONFIG_HOME/Code/User/settings.json`).
+- WSL: `~/.vscode-server/data/Machine/settings.json` in Linux, **never** Windows-host
+  settings. Native Windows support is intentionally deferred.
+
+When no settings file exists, apply creates one. If it exists, the plan displays **only
+missing preferences** and interactive apply asks for explicit `y` approval before adding
+them; existing values and JSONC comments are preserved. Declining, running without a
+terminal, or encountering unsafe/unparseable settings **skips the VS Code settings step**
+without interfering with safe links. No user-owned settings file is silently overwritten.
+
+Node.js 22.18+ (22.x) or 24.2+ (newer major versions) is required for the linked
+`workctl` CLI. The bootstrap itself runs on the available Node.js runtime used for
+repository validation.
 
 ## Home-level defaults
 
@@ -42,7 +45,7 @@ for a later expansion**, outside this implementation slice; no delivery date is 
 - `.config/git/ignore` — only OS/editor trash. Semantic project ignores such as `.env` remain owned by each repository.
 - `.editorconfig` — LF line endings, final newlines, two-space defaults, 100-column guidance, and Rust/Makefile overrides.
 
-On Linux or WSL, preview the home links with:
+To run the older **home-links-only** command instead, preview with:
 
 ```sh
 node scripts/link-home.mjs --dry-run
@@ -149,7 +152,7 @@ To define a new product or major feature, invoke `grill` first (for example, "/g
 
 **Using this skill in ChatGPT:** With GitHub connected, say: **"Use the [grill skill](https://github.com/moritzbrantner/dotfiles/blob/main/skills/grill/SKILL.md) for my ARPG; show example pictures for A/B/C and ask one concrete question at a time."** ChatGPT can read the current GitHub file and follow it. This repository link does not register a native ChatGPT slash command; refer to the skill explicitly when you want that workflow. For voice-only use, the short spoken option descriptions must stand on their own without images.
 
-Install the skills for Claude Code and Codex by symlinking them:
+For a manual installation **instead of the bootstrap**, link Claude Code and Codex skills:
 
 ```bash
 mkdir -p ~/.claude/skills ~/.agents/skills ~/.local/share/coding-agent
@@ -170,7 +173,7 @@ the module keeps the exported helpers available without running the CLI.
 - `.vscode/settings.json` — save-time Oxfmt then Oxlint fixes, focused navigation/refactoring aids, explicit Git synchronization behavior, compact editor presentation, and Rust/TOML formatting.
 - `.vscode/extensions.json` — Oxc, ESLint, EditorConfig, Rust Analyzer, TOML, WSL, and Dev Container recommendations.
 
-The VS Code files are reusable workspace defaults. User-settings locations differ between Windows-hosted VS Code, WSL, and native Linux, so they are not linked automatically.
+The VS Code files remain reusable workspace defaults. The bootstrap merges missing tracked preferences into the applicable personal Linux or WSL settings path, with consent for existing files; it does not change Windows-hosted settings or automatically install recommended extensions.
 
 ## Validation
 
@@ -180,7 +183,7 @@ Run:
 node scripts/check.mjs
 ```
 
-Configuration validation uses the tools that own the formats: Git validates `.gitconfig`, ESLint loads `eslint.config.mjs`, Oxlint loads `.oxlintrc.json`, and Oxfmt loads `.oxfmtrc.json`. JSON-only VS Code files are parsed directly. The check also runs the work-loop helper tests, including symlink CLI and import regressions, and `git diff --check` over unstaged and staged changes.
+Configuration validation uses the tools that own the formats: Git validates `.gitconfig`, ESLint loads `eslint.config.mjs`, Oxlint loads `.oxlintrc.json`, and Oxfmt loads `.oxfmtrc.json`. JSON-only VS Code files are parsed directly. The check also runs the work-loop helper tests and isolated-home bootstrap acceptance tests (including symlinks, JSONC consent, and WSL boundaries), and `git diff --check` over unstaged and staged changes.
 
 `eslint`, `oxlint`, and `oxfmt` must already be on `PATH`. Validation never installs tools or performs hidden network access.
 
