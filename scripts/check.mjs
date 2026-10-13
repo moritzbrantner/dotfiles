@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 for (const [command, args] of [
   ["node", ["scripts/validate-configs.mjs"]],
   ["node", ["--test", "skills/work-loop/workctl.test.mjs"]],
+  ["node", ["--test", "scripts/bootstrap.test.mjs"]],
   ["git", ["diff", "--check"]],
   ["git", ["diff", "--cached", "--check"]],
 ]) {
