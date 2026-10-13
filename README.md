@@ -8,6 +8,34 @@ This repository stores portable defaults that are useful across projects. Reposi
 
 Keep secrets, credentials, machine-specific paths, and Git identity out of the repository.
 
+## Bootstrap intent (owner-approved; not yet implemented)
+
+New-machine setup should provide **one bootstrap command** with a preview/dry-run mode and
+an explicit apply mode. It covers the existing Git/home defaults, reusable Claude Code and
+Codex agent skills, the `workctl` helper, and **personal VS Code settings** using the
+preferences tracked in `.vscode/settings.json`. It must be **non-destructive and idempotent**:
+leave matching installations alone, refuse to overwrite unrelated files or symlinks, and
+show the complete proposed setup plan before making changes. Existing personal VS Code
+preferences must be preserved rather than silently replaced or overridden. VS Code
+extensions remain recommendations; the bootstrap must **not** install them automatically.
+
+**For an existing VS Code user `settings.json`, ask for explicit permission before merging
+missing preferences.** Show the proposed additions first; retain all existing values.
+If permission is declined, an interactive prompt is unavailable, or a safe merge cannot be
+guaranteed, **skip VS Code settings changes** and report the skip without blocking other
+safe setup steps. An absent settings file may be created during explicit bootstrap apply.
+The bootstrap must **not** automatically download dependencies, install packages, or
+introduce managed profiles.
+
+This is the approved target behavior, **not an available command yet**. Until implemented,
+use the separate setup procedures below.
+
+The first bootstrap release supports **Linux and WSL**. When launched inside WSL, the
+VS Code preferences step targets **WSL-side settings only**. It must not modify or attempt
+to configure Windows-hosted VS Code user settings, even if Windows-hosted VS Code is the
+editor connected to WSL. **Native Windows and Windows-host settings support are planned
+for a later expansion**, outside this implementation slice; no delivery date is set.
+
 ## Home-level defaults
 
 - `.gitconfig` — fast-forward-only pulls, pruned fetches, automatic upstream setup, rerere, zdiff3 conflicts, histogram diffs, autostash for explicit rebases, and review-friendly commit/status defaults.
