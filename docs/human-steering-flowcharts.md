@@ -94,6 +94,10 @@ mechanical wherever possible. Exactly **one active implementation worker per rep
 independent acceptance authorship happens **before** changing behavior/architecture, not
 as a simultaneous competing writer.
 
+The worker uses the repository's ordinary checkout and a task branch by default.
+Worktrees are an exception for a concrete isolation need or protecting unrelated
+checkout changes; independent acceptance still hands off before production edits.
+
 ```mermaid
 flowchart TD
     START(["work-loop: next natural scan"]) --> EXIST{"Open PR or live verification handoff?"}

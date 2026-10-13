@@ -1,6 +1,6 @@
 ---
 name: work-loop
-description: Run the global coding loop over the moritzbrantner GitHub repositories: finish existing PRs, pick an actionable issue, implement it under that repository's rules, validate, merge, and repeat. Ask the owner only when a real decision is required.
+description: "Run the global coding loop over the moritzbrantner GitHub repositories: finish existing PRs, pick an actionable issue, implement it under that repository's rules, validate, merge, and repeat. Ask the owner only when a real decision is required."
 ---
 
 # Work loop
@@ -45,7 +45,7 @@ Use `node ~/.local/share/coding-agent/workctl.mjs` for deterministic PR scanning
    - If a consequential owner decision is still needed, record or reference its Atlas Question when applicable, add `needs-decision`, and move to other actionable work; invoke `unblock`/`grill` one question at a time when the owner is available. Do not make implementation decisions on the owner's behalf.
 
 4. **Implement one coherent scope.**
-   - Work from a fresh default-branch worktree; do not edit the user's ordinary checkout.
+   - Follow shared `AGENT-009` checkout policy: use the repository's ordinary checkout and a task branch by default. Inspect its Git state before switching branches; resume the existing task branch/PR, or start a new task branch from the freshly fetched default branch. Preserve unrelated user changes. Use an existing isolated checkout or a worktree only when a concrete isolation need or unrelated checkout work prevents safe in-place work, and record the reason. Never stash, reset, overwrite or discard user changes to force a clean checkout.
    - For behavior/architecture changes, establish or independently verify acceptance with a **separate acceptance agent/context** before any production edits. If tests change, commit them before implementation. If existing tests already suffice, record their paths, baseline revision and independent verification on the issue **before** implementation; no empty or artificial test commit is required.
    - Push early and open a draft PR with `Closes #<n>` as soon as the acceptance change or another meaningful pre-implementation change can form a PR, **before** the implementation agent begins. If no pre-implementation file change is warranted, retain the earlier issue handoff, open the draft with the first meaningful implementation commit, and immediately link that pre-implementation handoff; never invent a dummy change. Always target the default branch; never create stacked PRs. If the next slice depends on an unmerged PR, leave it as an issue and work elsewhere until that PR lands.
    - Implement in a distinct agent/context using the established acceptance contract. If independence cannot be arranged, leave an existing task PR in draft awaiting handoff; when no draft or meaningful commit exists, record the missing handoff on the owning issue and do not begin implementation. Never manufacture a commit to create a placeholder PR.
