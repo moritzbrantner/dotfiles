@@ -1,0 +1,9 @@
+[Unit]
+Description=Retain bounded inactive development build output and package caches
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.local/share/coding-agent/disk-maintenance.py maintain --config %h/.config/coding-agent/disk-maintenance.json --apply
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=15min

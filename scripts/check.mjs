@@ -4,6 +4,9 @@ for (const [command, args] of [
   ["node", ["scripts/validate-configs.mjs"]],
   ["node", ["--test", "skills/work-loop/workctl.test.mjs"]],
   ["node", ["--test", "scripts/bootstrap.test.mjs"]],
+  ...(process.platform === "linux"
+    ? [["node", ["--test", "scripts/disk-maintenance.test.mjs"]]]
+    : []),
   ["git", ["diff", "--check"]],
   ["git", ["diff", "--cached", "--check"]],
 ]) {

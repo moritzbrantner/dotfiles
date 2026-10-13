@@ -95,7 +95,6 @@ GitHub issues and pull requests are the only **execution state**. Product intent
 
 **Feature delivery rule:** Each user-facing feature issue must end in a real, independently verifiable user journey on GitHub Pages (or an equivalent product surface) with browser acceptance evidence and a check of the published result. Backend-only prerequisites remain technical issues, not completed product features. See `skills/issue-preflight` for exceptions and deployment timing.
 
-
 ### Work-loop mental model
 
 The skill file is the operational definition; this diagram is the human-readable control flow. A current issue should produce one coherent PR. If the selected issue contains separable remainder beyond one coherent PR, create focused follow-up issues for that remainder rather than expanding the PR indefinitely. Unrelated findings are not added to the work queue.
@@ -174,6 +173,59 @@ the module keeps the exported helpers available without running the CLI.
 - `.vscode/extensions.json` — Oxc, ESLint, EditorConfig, Rust Analyzer, TOML, WSL, and Dev Container recommendations.
 
 The VS Code files remain reusable workspace defaults. The bootstrap merges missing tracked preferences into the applicable personal Linux or WSL settings path, with consent for existing files; it does not change Windows-hosted settings or automatically install recommended extensions.
+
+## Automatic disk maintenance (Linux)
+
+Install the personal maintenance service once for a workspace collection:
+
+```sh
+python3 scripts/disk-maintenance.py install --workspace "$HOME/moritzbrantner" --apply
+```
+
+The command defaults to a preview without `--apply`. It installs links to this repository
+and enables a daily persistent user timer. Configuration stays in
+`~/.config/coding-agent/disk-maintenance.json`; repeated installation preserves configured
+thresholds and adds only missing roots. The service intentionally uses that fixed configuration
+path regardless of `XDG_CONFIG_HOME`. `XDG_CACHE_HOME` is honored for temporary verification
+and package caches. Python 3.11+, Git and Linux `/proc` are required; systemd user services
+are required for scheduling. Installation is explicit, separate from the general bootstrap.
+
+The defaults remove Cargo-generated `target`, `.cargo-target`, and legacy `*-target`
+directories after seven inactive days, or after 24 quiet hours when a target exceeds 10 GiB.
+Below 50 GiB free, quiet outputs are cleaned oldest first until 75 GiB is available.
+Only declared roots beneath the home directory are scanned. Cargo markers are required;
+source, Git state, tracked files, symlink boundaries and outputs used by live processes are
+preserved. Recent builds are kept. No cleanup runs through models, personal downloads,
+virtual environments, `node_modules`, Bun/T3 installations or application databases.
+
+The service runs supported `uv cache prune` and clears pip/npm caches when they exceed 1 GiB.
+It pins each command to the inspected cache path and skips active package managers.
+It never edits uv cache entries directly. An unreadable unknown same-user process prevents
+deletion and reports unavailable safety evidence. Known root-owned service/credential
+agents and sandboxed browser subprocesses are handled explicitly while retaining their
+visible command-line checks; arbitrary uninspectable build processes are not exempt.
+
+For a one-shot verification, use:
+
+```sh
+python3 ~/.local/share/coding-agent/disk-maintenance.py run -- cargo test --workspace
+```
+
+The wrapper uses a private target with incremental compilation disabled, returns the
+command's exit status, and removes its output on success, failure, SIGINT and SIGTERM.
+It refuses to start below the free-space reserve and stops its command group if that
+reserve is crossed during execution. Keep reports outside its disposable target.
+Abandoned wrapper directories are recovered by retention maintenance; live or detached
+processes still using them are preserved. Commands that explicitly override Cargo's target
+directory need their own cleanup lifecycle. Ordinary development builds can reuse their
+existing targets and are covered by periodic retention rather than the wrapper's reserve.
+
+Inspect the schedule and logs with `systemctl --user list-timers coding-agent-disk-maintenance.timer`
+and `journalctl --user -u coding-agent-disk-maintenance.service`. Preview cleanup with
+`python3 ~/.local/share/coding-agent/disk-maintenance.py maintain`; add `--apply` for an
+immediate run. Disable scheduling with `systemctl --user disable --now coding-agent-disk-maintenance.timer`.
+These controls bound regenerable development output; they do not impose a quota on retained
+models, personal data or build commands that bypass the verification wrapper.
 
 ## Validation
 
