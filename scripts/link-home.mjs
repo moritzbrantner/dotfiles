@@ -2,74 +2,63 @@ import {
   lstatSync,
   mkdirSync,
   readlinkSync,
+  realpathSync,
   statSync,
   symlinkSync,
 } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const home = process.env.HOME;
+export const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-if (!home) {
-  throw new Error("HOME is not set");
-}
-
-const dryRun = process.argv.includes("--dry-run");
-const links = [
+export const homeLinks = [
   [".gitconfig", ".gitconfig"],
   [".editorconfig", ".editorconfig"],
   [".config/git/ignore", ".config/git/ignore"],
 ];
 
-// Plan every link before touching the filesystem so a refusal never leaves a partial setup.
-const plan = [];
-for (const [sourcePath, targetPath] of links) {
-  const source = resolve(repositoryRoot, sourcePath);
-  const target = resolve(home, targetPath);
-  const targetDirectory = dirname(target);
-  const desiredLink = relative(targetDirectory, source);
+// Shared preflight for the standalone home linker and the complete bootstrap.
+// Complete the entire plan before creating any directories or symlinks.
+export function planLinks(home, entries) {
+  const plan = [];
+  for (const [sourcePath, targetPath] of entries) {
+    const source = resolve(repositoryRoot, sourcePath);
+    const target = resolve(home, targetPath);
+    const targetDirectory = dirname(target);
+    const desiredLink = relative(targetDirectory, source);
 
-  assertDirectoryUsable(targetDirectory);
-
-  // lstat (not existsSync) so a dangling symlink still counts as an existing target.
-  const stat = lstatOrNull(target);
-  if (stat) {
-    if (stat.isSymbolicLink()) {
-      const currentTarget = resolve(targetDirectory, readlinkSync(target));
-      if (currentTarget === source) {
-        console.log(`ok      ${targetPath}`);
-        continue;
+    assertDirectoryUsable(targetDirectory);
+    const stat = lstatOrNull(target);
+    if (stat) {
+      if (stat.isSymbolicLink()) {
+        const currentTarget = resolve(targetDirectory, readlinkSync(target));
+        if (currentTarget === source) {
+          plan.push({ targetPath, target, targetDirectory, desiredLink, status: "ok" });
+          continue;
+        }
       }
+      throw new Error(
+        `Refusing to replace existing ${target}. Move it aside explicitly before linking.`,
+      );
     }
-
-    throw new Error(
-      `Refusing to replace existing ${target}. Move it aside explicitly before linking.`,
-    );
+    plan.push({ targetPath, target, targetDirectory, desiredLink, status: "create" });
   }
-
-  plan.push({ targetPath, target, targetDirectory, desiredLink });
+  return plan;
 }
 
-for (const { targetPath, target, targetDirectory, desiredLink } of plan) {
-  console.log(`${dryRun ? "would link" : "link"} ${targetPath} -> ${desiredLink}`);
-  if (dryRun) {
-    continue;
+export function applyLinks(plan) {
+  for (const entry of plan) {
+    if (entry.status !== "create") continue;
+    mkdirSync(entry.targetDirectory, { recursive: true });
+    symlinkSync(entry.desiredLink, entry.target);
   }
-
-  mkdirSync(targetDirectory, { recursive: true });
-  symlinkSync(desiredLink, target);
 }
 
-// Walk up to the nearest existing ancestor: it must resolve to a directory. A dangling
-// symlink or a regular file there would make mkdirSync fail midway through a real run.
 function assertDirectoryUsable(directory) {
   let current = directory;
   while (!lstatOrNull(current)) {
     const parent = dirname(current);
-    if (parent === current) {
-      return;
-    }
+    if (parent === current) return;
     current = parent;
   }
 
@@ -84,7 +73,6 @@ function assertDirectoryUsable(directory) {
     }
     throw error;
   }
-
   if (!resolved.isDirectory()) {
     throw new Error(`Refusing to link under ${current}: it is not a directory.`);
   }
@@ -94,9 +82,32 @@ function lstatOrNull(path) {
   try {
     return lstatSync(path);
   } catch (error) {
-    if (error.code === "ENOENT" || error.code === "ENOTDIR") {
-      return null;
-    }
+    if (error.code === "ENOENT" || error.code === "ENOTDIR") return null;
     throw error;
+  }
+}
+
+function isExecutedDirectly() {
+  try {
+    return process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+  } catch {
+    return false;
+  }
+}
+
+if (isExecutedDirectly()) {
+  try {
+    const home = process.env.HOME;
+    if (!home) throw new Error("HOME is not set");
+    const dryRun = process.argv.includes("--dry-run");
+    const plan = planLinks(home, homeLinks);
+    for (const item of plan) {
+      if (item.status === "ok") console.log(`ok      ${item.targetPath}`);
+      else console.log(`${dryRun ? "would link" : "link"} ${item.targetPath} -> ${item.desiredLink}`);
+    }
+    if (!dryRun) applyLinks(plan);
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
   }
 }
