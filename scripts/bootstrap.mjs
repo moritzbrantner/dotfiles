@@ -240,10 +240,7 @@ function writeSettings(settings, accepted) {
     }
     return;
   }
-  // Recheck before replacing any existing user-owned file (never follow symlinks).
-  const stat = lstatOrNull(settings.target);
-  if (!stat?.isFile() || stat.isSymbolicLink() || stat.ino !== settings.ino ||
-      stat.dev !== settings.dev || readFileSync(settings.target, "utf8") !== settings.raw) {
+  if (!settingsUnchanged(settings)) {
     console.log("skip VS Code settings: changed since preview");
     return;
   }
@@ -251,10 +248,23 @@ function writeSettings(settings, accepted) {
   try {
     writeFileSync(temporary, settings.merged, { flag: "wx", mode: settings.mode });
     chmodSync(temporary, settings.mode);
+    // Node has no conditional rename, so recheck as the last step before replacing:
+    // an editor save during the temporary write is detected and wins.
+    if (!settingsUnchanged(settings)) {
+      console.log("skip VS Code settings: changed since preview");
+      return;
+    }
     renameSync(temporary, settings.target);
   } finally {
     rmSync(temporary, { force: true });
   }
+}
+
+// Recheck before replacing any existing user-owned file (never follow symlinks).
+function settingsUnchanged(settings) {
+  const stat = lstatOrNull(settings.target);
+  return Boolean(stat?.isFile()) && !stat.isSymbolicLink() && stat.ino === settings.ino &&
+    stat.dev === settings.dev && readFileSync(settings.target, "utf8") === settings.raw;
 }
 
 export async function runBootstrap(args = process.argv.slice(2), env = process.env) {

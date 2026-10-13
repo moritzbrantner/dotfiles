@@ -25,15 +25,17 @@ export function planLinks(home, entries) {
     const source = resolve(repositoryRoot, sourcePath);
     const target = resolve(home, targetPath);
     const targetDirectory = dirname(target);
-    const desiredLink = relative(targetDirectory, source);
+    // The kernel resolves a relative link from the physical directory, which differs
+    // from the lexical one when an ancestor (such as ~/.claude) is itself a symlink.
+    const physicalDirectory = physicalPath(targetDirectory);
+    const desiredLink = relative(physicalDirectory, source);
 
-    assertDirectoryUsable(targetDirectory);
     const stat = lstatOrNull(target);
     if (stat) {
       if (stat.isSymbolicLink()) {
-        const currentTarget = resolve(targetDirectory, readlinkSync(target));
+        const currentTarget = resolve(physicalDirectory, readlinkSync(target));
         if (currentTarget === source) {
-          plan.push({ targetPath, target, targetDirectory, desiredLink, status: "ok" });
+          plan.push({ targetPath, target, targetDirectory, physicalDirectory, desiredLink, status: "ok" });
           continue;
         }
       }
@@ -41,24 +43,42 @@ export function planLinks(home, entries) {
         `Refusing to replace existing ${target}. Move it aside explicitly before linking.`,
       );
     }
-    plan.push({ targetPath, target, targetDirectory, desiredLink, status: "create" });
+    plan.push({ targetPath, target, targetDirectory, physicalDirectory, desiredLink, status: "create" });
   }
   return plan;
 }
 
+// The preview may be followed by an interactive prompt, so verify that every planned
+// parent still resolves to the previewed directory before the first mutation, and
+// again right before each link.
 export function applyLinks(plan) {
-  for (const entry of plan) {
-    if (entry.status !== "create") continue;
+  const pending = plan.filter((entry) => entry.status === "create");
+  for (const entry of pending) assertUnchanged(entry);
+  for (const entry of pending) {
+    assertUnchanged(entry);
     mkdirSync(entry.targetDirectory, { recursive: true });
     symlinkSync(entry.desiredLink, entry.target);
   }
 }
 
-function assertDirectoryUsable(directory) {
+function assertUnchanged(entry) {
+  let physicalDirectory;
+  try {
+    physicalDirectory = physicalPath(entry.targetDirectory);
+  } catch {
+    physicalDirectory = null;
+  }
+  if (physicalDirectory !== entry.physicalDirectory || lstatOrNull(entry.target)) {
+    throw new Error(`Refusing to link ${entry.target}: it changed since preview. Run bootstrap again.`);
+  }
+}
+
+// Resolve the nearest existing ancestor physically and append the missing remainder.
+function physicalPath(directory) {
   let current = directory;
   while (!lstatOrNull(current)) {
     const parent = dirname(current);
-    if (parent === current) return;
+    if (parent === current) return directory;
     current = parent;
   }
 
@@ -76,6 +96,7 @@ function assertDirectoryUsable(directory) {
   if (!resolved.isDirectory()) {
     throw new Error(`Refusing to link under ${current}: it is not a directory.`);
   }
+  return resolve(realpathSync(current), relative(current, directory));
 }
 
 function lstatOrNull(path) {
