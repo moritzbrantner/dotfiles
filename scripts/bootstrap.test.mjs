@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
   existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync,
-  readlinkSync, readdirSync, rmSync, symlinkSync, writeFileSync,
+  readlinkSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 
@@ -143,18 +143,27 @@ test("pre-apply plan is complete before any filesystem writes", (t) => {
         throw new Error("filesystem mutation before complete published plan: " + name);
       }
     };
+    // Read-only opens (for example the ESM loader reading bootstrap.mjs) are not mutations.
+    const { O_WRONLY, O_RDWR, O_CREAT, O_TRUNC, O_APPEND } = fs.constants;
+    const writes = (flags) => flags !== undefined && (typeof flags === "number"
+      ? (flags & (O_WRONLY | O_RDWR | O_CREAT | O_TRUNC | O_APPEND)) !== 0
+      : /[wa+]/.test(flags));
+    const guard = (name, args) => {
+      if ((name === "openSync" || name === "promises.open") && !writes(args[1])) return;
+      verify(name);
+    };
     for (const name of ["mkdirSync", "symlinkSync", "writeFileSync", "renameSync",
       "copyFileSync", "appendFileSync", "openSync", "linkSync", "rmSync"]) {
       const original = fs[name].bind(fs);
       fs[name] = (...args) => {
-        verify(name);
+        guard(name, args);
         return original(...args);
       };
     }
     syncBuiltinESMExports();
     for (const name of ["mkdir", "symlink", "writeFile", "rename", "copyFile", "open", "rm", "appendFile"]) {
       const original = fs.promises[name].bind(fs.promises);
-      fs.promises[name] = async (...args) => { verify("promises." + name); return original(...args); };
+      fs.promises[name] = async (...args) => { guard("promises." + name, args); return original(...args); };
     }
   `;
   writeFileSync(preload, code);
@@ -235,9 +244,9 @@ test("native Windows is rejected by the actual CLI before any filesystem writes"
   assert.deepEqual(readdirSync(home), []);
 });
 
-function interactiveApply(home, answer, overrides = {}) {
+function interactiveApply(home, answer, overrides = {}, nodeArgs = []) {
   const shellQuote = (s) => "'" + s.replaceAll("'", "'\\''") + "'";
-  const command = shellQuote(process.execPath) + " " + shellQuote(bootstrap) + " --apply";
+  const command = [process.execPath, ...nodeArgs, bootstrap].map(shellQuote).join(" ") + " --apply";
   return spawnSync("script", ["-q", "-e", "-c", command, "/dev/null"], {
     cwd: root, env: environment(home, overrides),
     input: answer + "\n", encoding: "utf8", timeout: 12000,
@@ -398,4 +407,74 @@ test("standalone legacy home linker stays home-only", (t) => {
   assert.equal(applied.status, 0, applied.stderr);
   assertLink(home, ".gitconfig", ".gitconfig");
   assert.equal(existsSync(join(home, ".agents")), false);
+});
+
+test("links under a symlinked ancestor resolve from its physical directory", (t) => {
+  const home = fixture(t);
+  const physical = join(home, "mnt/deeper/mounted/claude");
+  mkdirSync(physical, { recursive: true });
+  symlinkSync(physical, join(home, ".claude"));
+  const result = run(home, ["--apply"]);
+  assert.equal(result.status, 0, result.stderr);
+  for (const name of skills) {
+    const link = join(home, `.claude/skills/${name}`);
+    assert.equal(realpathSync(link), realpathSync(join(root, `skills/${name}`)), name);
+  }
+  const again = run(home, ["--apply"]);
+  assert.equal(again.status, 0, again.stderr);
+  assert.doesNotMatch(again.stdout, /link \.claude\//);
+});
+
+test("a lexically computed broken link under a symlinked ancestor is not reported ok", (t) => {
+  const home = fixture(t);
+  const physical = join(home, "mnt/deeper/mounted/claude");
+  mkdirSync(join(physical, "skills"), { recursive: true });
+  symlinkSync(physical, join(home, ".claude"));
+  const lexicalDirectory = join(home, ".claude/skills");
+  const link = join(lexicalDirectory, skills[0]);
+  // What a lexical relative() computes; broken once resolved from the physical directory.
+  const lexical = relative(lexicalDirectory, join(root, "skills", skills[0]));
+  symlinkSync(lexical, link);
+  assert.equal(existsSync(link), false, "fixture link must be broken");
+  const result = run(home, ["--dry-run"]);
+  assert.notEqual(result.status, 0, "a broken link must not be accepted as installed");
+  assert.equal(readlinkSync(link), lexical);
+});
+
+test("applying links fails without mutation when a planned parent changes after preview", async (t) => {
+  const home = fixture(t);
+  const outside = fixture(t);
+  const { applyLinks, planLinks } = await import(pathToFileURL(join(root, "scripts/link-home.mjs")).href);
+  const plan = planLinks(home, [["skills/steer", ".claude/skills/steer"], [".gitconfig", ".gitconfig"]]);
+  symlinkSync(outside, join(home, ".claude"));
+  assert.throws(() => applyLinks(plan), /changed since preview/);
+  assert.deepEqual(readdirSync(outside), []);
+  assert.equal(existsSync(join(home, ".gitconfig")), false);
+});
+
+test("approved merge skips when settings change between check and replacement", (t) => {
+  if (!requirePseudoterminal(t)) return;
+  const home = fixture(t);
+  const { target } = existingPreferences(home);
+  const watch = mkdtempSync(join(tmpdir(), "bootstrap-race-"));
+  t.after(() => rmSync(watch, { recursive: true, force: true }));
+  const preload = join(watch, "concurrent-editor.mjs");
+  const concurrent = '{\n  "editor.minimap.enabled": false\n}\n';
+  // Simulate VS Code saving while bootstrap prepares its replacement file.
+  writeFileSync(preload, `
+    import fs from "node:fs";
+    import { syncBuiltinESMExports } from "node:module";
+    const original = fs.writeFileSync.bind(fs);
+    fs.writeFileSync = (path, ...rest) => {
+      if (String(path).includes(".bootstrap-")) {
+        original(${JSON.stringify(target)}, ${JSON.stringify(concurrent)});
+      }
+      return original(path, ...rest);
+    };
+    syncBuiltinESMExports();
+  `);
+  const result = interactiveApply(home, "y", {}, ["--import", pathToFileURL(preload).href]);
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  assert.equal(readFileSync(target, "utf8"), concurrent);
+  assert.match(result.stdout, /skip.*VS Code.*changed/i);
 });
