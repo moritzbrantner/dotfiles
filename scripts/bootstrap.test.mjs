@@ -136,18 +136,26 @@ test("pre-apply plan is complete before any filesystem writes", (t) => {
       stdout += chunk.toString();
       return originalWrite(chunk, ...rest);
     };
-    for (const name of ["mkdirSync", "symlinkSync", "writeFileSync", "renameSync"]) {
+    const verify = (name) => {
+      const required = ${JSON.stringify(targets)};
+      if (!stdout.includes("Plan:") || !stdout.includes("Applying:") ||
+        required.some((t) => stdout.indexOf(t) < 0 || stdout.indexOf(t) > stdout.indexOf("Applying:"))) {
+        throw new Error("filesystem mutation before complete published plan: " + name);
+      }
+    };
+    for (const name of ["mkdirSync", "symlinkSync", "writeFileSync", "renameSync",
+      "copyFileSync", "appendFileSync", "openSync", "linkSync", "rmSync"]) {
       const original = fs[name].bind(fs);
       fs[name] = (...args) => {
-        const required = ${JSON.stringify(targets)};
-        if (!stdout.includes("Plan:") || !stdout.includes("Applying:") ||
-          required.some((t) => stdout.indexOf(t) < 0 || stdout.indexOf(t) > stdout.indexOf("Applying:"))) {
-          throw new Error("filesystem mutation before complete published plan: " + name);
-        }
+        verify(name);
         return original(...args);
       };
     }
     syncBuiltinESMExports();
+    for (const name of ["mkdir", "symlink", "writeFile", "rename", "copyFile", "open", "rm", "appendFile"]) {
+      const original = fs.promises[name].bind(fs.promises);
+      fs.promises[name] = async (...args) => { verify("promises." + name); return original(...args); };
+    }
   `;
   writeFileSync(preload, code);
   const result = spawnSync(process.execPath, ["--import", pathToFileURL(preload).href,
@@ -201,6 +209,9 @@ test("WSL configures remote machine settings but not Windows-hosted settings", (
     APPDATA: dirname(dirname(win)),
   });
   assert.equal(result.status, 0, result.stderr);
+  assert.ok(result.stdout.indexOf(".vscode-server/data/Machine/settings.json") >= 0);
+  assert.ok(result.stdout.indexOf(".vscode-server/data/Machine/settings.json") < result.stdout.indexOf("Applying:"));
+  assert.equal(result.stdout.includes(".config/Code/User/settings.json"), false);
   assert.deepEqual(
     JSON.parse(readFileSync(join(home, ".vscode-server/data/Machine/settings.json"), "utf8")),
     settingsTemplate,
@@ -224,11 +235,11 @@ test("native Windows is rejected by the actual CLI before any filesystem writes"
   assert.deepEqual(readdirSync(home), []);
 });
 
-function interactiveApply(home, answer) {
+function interactiveApply(home, answer, overrides = {}) {
   const shellQuote = (s) => "'" + s.replaceAll("'", "'\\''") + "'";
   const command = shellQuote(process.execPath) + " " + shellQuote(bootstrap) + " --apply";
   return spawnSync("script", ["-q", "-e", "-c", command, "/dev/null"], {
-    cwd: root, env: environment(home),
+    cwd: root, env: environment(home, overrides),
     input: answer + "\n", encoding: "utf8", timeout: 12000,
   });
 }
@@ -299,6 +310,14 @@ test("approved merge preserves valid JSONC comments, trailing commas, and overri
   for (const key of Object.keys(settingsTemplate)) {
     assert.ok(current.includes(JSON.stringify(key)), `missing JSONC setting: ${key}`);
   }
+  // Independently parse this fixture's // comments and trailing commas;
+  // do not rely on the implementation parser to check its own output.
+  const parsed = JSON.parse(current.replace(/\/\/[^\r\n]*/g, "").replace(/,\s*([}\]])/g, "$1"));
+  assert.deepEqual(parsed, {
+    ...settingsTemplate,
+    "editor.minimap.enabled": true,
+    "custom.preference": 42,
+  });
 });
 
 test("does not call code or install extensions while applying settings", (t) => {
@@ -311,4 +330,72 @@ test("does not call code or install extensions while applying settings", (t) => 
   const result = run(home, ["--apply"], { PATH: tools + ":" + process.env.PATH });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(existsSync(sentinel), false, "bootstrap launched VS Code CLI");
+});
+
+test("WSL existing settings are preserved without consent, and merged with approval", (t) => {
+  const home = fixture(t);
+  const target = join(home, ".vscode-server/data/Machine/settings.json");
+  mkdirSync(dirname(target), { recursive: true });
+  const original = '{\n  "editor.minimap.enabled": true,\n  "custom.preference": 42\n}\n';
+  writeFileSync(target, original);
+  const overrides = { WSL_DISTRO_NAME: "Ubuntu" };
+  const skipped = run(home, ["--apply"], overrides);
+  assert.equal(skipped.status, 0, skipped.stderr);
+  assert.match(skipped.stdout, /skip.*VS Code|VS Code.*skip/i);
+  assert.equal(readFileSync(target, "utf8"), original);
+  if (!requirePseudoterminal(t)) return;
+  const denied = interactiveApply(home, "n", overrides);
+  assert.equal(denied.status, 0, denied.stderr + denied.stdout);
+  assert.match(denied.stdout, /skip.*VS Code|VS Code.*skip/i);
+  assert.equal(readFileSync(target, "utf8"), original);
+  const approved = interactiveApply(home, "y", overrides);
+  assert.equal(approved.status, 0, approved.stderr + approved.stdout);
+  assert.deepEqual(JSON.parse(readFileSync(target, "utf8")), {
+    ...settingsTemplate,
+    "editor.minimap.enabled": true,
+    "custom.preference": 42,
+  });
+  assert.equal(existsSync(join(home, ".config/Code/User/settings.json")), false);
+});
+
+test("no process spawn or network API during bootstrap", (t) => {
+  const home = fixture(t);
+  const tools = mkdtempSync(join(tmpdir(), "bootstrap-prohibit-"));
+  t.after(() => rmSync(tools, { recursive: true, force: true }));
+  const preload = join(tools, "no-side-effects.mjs");
+  writeFileSync(preload, `
+    import cp from "node:child_process";
+    import http from "node:http";
+    import https from "node:https";
+    import net from "node:net";
+    import { syncBuiltinESMExports } from "node:module";
+    function blocked() { throw new Error("external command or network prohibited in bootstrap"); }
+    for (const name of ["spawn", "spawnSync", "exec", "execSync", "execFile", "execFileSync", "fork"]) cp[name] = blocked;
+    for (const obj of [http, https]) for (const name of ["get", "request"]) obj[name] = blocked;
+    for (const name of ["connect", "createConnection"]) net[name] = blocked;
+    globalThis.fetch = blocked;
+    syncBuiltinESMExports();
+  `);
+  const result = spawnSync(process.execPath, ["--import", pathToFileURL(preload).href,
+    bootstrap, "--apply"], {
+    cwd: root, env: environment(home), encoding: "utf8", timeout: 10000,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assertLink(home, ".gitconfig", ".gitconfig");
+});
+
+test("standalone legacy home linker stays home-only", (t) => {
+  const home = fixture(t);
+  const helper = join(root, "scripts/link-home.mjs");
+  const preview = spawnSync(process.execPath, [helper, "--dry-run"], {
+    cwd: root, env: environment(home), encoding: "utf8", timeout: 10000,
+  });
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.deepEqual(readdirSync(home), []);
+  const applied = spawnSync(process.execPath, [helper], {
+    cwd: root, env: environment(home), encoding: "utf8", timeout: 10000,
+  });
+  assert.equal(applied.status, 0, applied.stderr);
+  assertLink(home, ".gitconfig", ".gitconfig");
+  assert.equal(existsSync(join(home, ".agents")), false);
 });
