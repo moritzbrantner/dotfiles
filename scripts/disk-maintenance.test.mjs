@@ -1,10 +1,20 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const cli = join(repository, "scripts/disk-maintenance.py");
@@ -16,10 +26,27 @@ function fixture(t, overrides = {}) {
   const workspace = join(home, "workspace");
   mkdirSync(workspace);
   const config = join(home, "config.json");
-  writeFileSync(config, JSON.stringify({ schemaVersion: 1, roots: [workspace], maxAgeDays: 7,
-    maxTargetBytes: 10737418240, quietHours: 24, minFreeBytes: 0,
-    restoreFreeBytes: 0, packageCaches: false, cacheMaxBytes: 1073741824, ...overrides }));
-  return { home, workspace, config, env: { ...process.env, HOME: home, XDG_CACHE_HOME: join(home, "cache") } };
+  writeFileSync(
+    config,
+    JSON.stringify({
+      schemaVersion: 1,
+      roots: [workspace],
+      maxAgeDays: 7,
+      maxTargetBytes: 10737418240,
+      quietHours: 24,
+      minFreeBytes: 0,
+      restoreFreeBytes: 0,
+      packageCaches: false,
+      cacheMaxBytes: 1073741824,
+      ...overrides,
+    }),
+  );
+  return {
+    home,
+    workspace,
+    config,
+    env: { ...process.env, HOME: home, XDG_CACHE_HOME: join(home, "cache") },
+  };
 }
 
 function cargoTarget(f, checkout, ageDays = 10, name = "target") {
@@ -34,14 +61,22 @@ function cargoTarget(f, checkout, ageDays = 10, name = "target") {
 function ageTree(path, ageDays) {
   for (const entry of readdirSync(path, { withFileTypes: true })) {
     const child = join(path, entry.name);
-    if (entry.isDirectory()) ageTree(child, ageDays);
-    else utimesSync(child, new Date(Date.now() - ageDays * day), new Date(Date.now() - ageDays * day));
+    if (entry.isDirectory()) {
+      ageTree(child, ageDays);
+    } else {
+      utimesSync(child, new Date(Date.now() - ageDays * day), new Date(Date.now() - ageDays * day));
+    }
   }
   utimesSync(path, new Date(Date.now() - ageDays * day), new Date(Date.now() - ageDays * day));
 }
 
 function invoke(f, args) {
-  return spawnSync("python3", [cli, ...args], { cwd: repository, env: f.env, encoding: "utf8", timeout: 10000 });
+  return spawnSync("python3", [cli, ...args], {
+    cwd: repository,
+    env: f.env,
+    encoding: "utf8",
+    timeout: 10000,
+  });
 }
 
 function maintain(f, apply = false) {
@@ -62,15 +97,28 @@ function isRemoval(actions, path) {
 
 async function waitFor(predicate, message) {
   const deadline = Date.now() + 5000;
-  while (!predicate() && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20));
+  while (!predicate() && Date.now() < deadline) {
+    // Polling depends on the previous observation; these waits cannot run in parallel.
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
   assert.ok(predicate(), message);
 }
 
 async function sleeper(t, f, options = {}) {
-  const child = spawn(process.execPath, ["-e", options.code ?? "process.stdout.write('ready'); setInterval(() => {}, 1000)", ...(options.args ?? [])],
-    { cwd: options.cwd ?? repository, env: f.env, stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(
+    process.execPath,
+    [
+      "-e",
+      options.code ?? "process.stdout.write('ready'); setInterval(() => {}, 1000)",
+      ...(options.args ?? []),
+    ],
+    { cwd: options.cwd ?? repository, env: f.env, stdio: ["ignore", "pipe", "pipe"] },
+  );
   let ready = false;
-  child.stdout.on("data", () => { ready = true; });
+  child.stdout.on("data", () => {
+    ready = true;
+  });
   t.after(() => child.kill("SIGKILL"));
   await waitFor(() => ready, "fixture process did not become ready");
   return child;
@@ -101,7 +149,10 @@ test("dry run previews stale Cargo outputs and apply deletes only those outputs"
   assert.equal(readFileSync(source, "utf8"), "[package]\nname='preserved'\n");
   assert.equal(readFileSync(join(unrelated, "personal-data"), "utf8"), "keep");
   assert.equal(readFileSync(join(cache, "data"), "utf8"), "keep");
-  assert.equal(maintain(f, true).some((action) => action.action === "remove"), false);
+  assert.equal(
+    maintain(f, true).some((action) => action.action === "remove"),
+    false,
+  );
 });
 
 test("newest nested artifact protects an otherwise stale target", (t) => {
@@ -124,7 +175,10 @@ test("oversized outputs require a quiet period", (t) => {
 });
 
 test("low free space can remove quiet younger outputs but preserves recent builds", (t) => {
-  const f = fixture(t, { minFreeBytes: Number.MAX_SAFE_INTEGER, restoreFreeBytes: Number.MAX_SAFE_INTEGER });
+  const f = fixture(t, {
+    minFreeBytes: Number.MAX_SAFE_INTEGER,
+    restoreFreeBytes: Number.MAX_SAFE_INTEGER,
+  });
   const quiet = cargoTarget(f, "quiet", 2);
   const recent = cargoTarget(f, "recent", 0);
   maintain(f, true);
@@ -152,7 +206,10 @@ test("Git tracked files inside Cargo-looking targets are preserved", (t) => {
   const f = fixture(t);
   const target = cargoTarget(f, "tracked");
   const checkout = dirname(target);
-  for (const args of [["init", "-q", checkout], ["-C", checkout, "add", "target"]]) {
+  for (const args of [
+    ["init", "-q", checkout],
+    ["-C", checkout, "add", "target"],
+  ]) {
     const result = spawnSync("git", args, { encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);
   }
@@ -167,14 +224,29 @@ for (const kind of ["cwd", "args", "open file", "mapped file"]) {
     const checkout = dirname(target);
     const held = join(checkout, "held-source");
     writeFileSync(held, "source held by running process");
-    if (kind === "cwd") await sleeper(t, f, { cwd: checkout });
-    else if (kind === "args") await sleeper(t, f, { args: [held] });
-    else if (kind === "open file") await sleeper(t, f, { code: `require('node:fs').openSync(${JSON.stringify(held)}, 'r'); process.stdout.write('ready'); setInterval(() => {}, 1000)` });
-    else {
-      const child = spawn("python3", ["-c", "import mmap,sys,time; f=open(sys.argv[1],'r+b'); m=mmap.mmap(f.fileno(),0); f.close(); print('ready',flush=True); time.sleep(60)", held], { cwd: repository, env: f.env, stdio: ["ignore", "pipe", "pipe"] });
+    if (kind === "cwd") {
+      await sleeper(t, f, { cwd: checkout });
+    } else if (kind === "args") {
+      await sleeper(t, f, { args: [held] });
+    } else if (kind === "open file") {
+      await sleeper(t, f, {
+        code: `require('node:fs').openSync(${JSON.stringify(held)}, 'r'); process.stdout.write('ready'); setInterval(() => {}, 1000)`,
+      });
+    } else {
+      const child = spawn(
+        "python3",
+        [
+          "-c",
+          "import mmap,sys,time; f=open(sys.argv[1],'r+b'); m=mmap.mmap(f.fileno(),0); f.close(); print('ready',flush=True); time.sleep(60)",
+          held,
+        ],
+        { cwd: repository, env: f.env, stdio: ["ignore", "pipe", "pipe"] },
+      );
       t.after(() => child.kill("SIGKILL"));
       let ready = false;
-      child.stdout.on("data", () => { ready = true; });
+      child.stdout.on("data", () => {
+        ready = true;
+      });
       await waitFor(() => ready, "mapped-file fixture did not become ready");
     }
     const actions = maintain(f, true);
@@ -198,9 +270,20 @@ for (const status of [0, 23]) {
 }
 
 test("low disk space refuses isolated commands before starting their work", (t) => {
-  const f = fixture(t, { minFreeBytes: Number.MAX_SAFE_INTEGER, restoreFreeBytes: Number.MAX_SAFE_INTEGER });
+  const f = fixture(t, {
+    minFreeBytes: Number.MAX_SAFE_INTEGER,
+    restoreFreeBytes: Number.MAX_SAFE_INTEGER,
+  });
   const evidence = join(f.home, "must-not-start");
-  const result = invoke(f, ["run", "--config", f.config, "--", process.execPath, "-e", `require('node:fs').writeFileSync(${JSON.stringify(evidence)}, 'started')`]);
+  const result = invoke(f, [
+    "run",
+    "--config",
+    f.config,
+    "--",
+    process.execPath,
+    "-e",
+    `require('node:fs').writeFileSync(${JSON.stringify(evidence)}, 'started')`,
+  ]);
   assert.notEqual(result.status, 0);
   assert.equal(existsSync(evidence), false);
 });
@@ -210,15 +293,29 @@ for (const signal of ["SIGTERM", "SIGINT"]) {
     const f = fixture(t);
     const evidence = join(f.home, "child-ready.json");
     const code = `const fs=require('node:fs'); const p=process.env.CARGO_TARGET_DIR; fs.mkdirSync(p,{recursive:true}); fs.writeFileSync(p+'/output','build'); fs.writeFileSync(${JSON.stringify(evidence)}, JSON.stringify({target:p,pid:process.pid})); setInterval(()=>{},1000);`;
-    const wrapper = spawn("python3", [cli, "run", "--config", f.config, "--", process.execPath, "-e", code], { cwd: repository, env: f.env, stdio: "ignore" });
+    const wrapper = spawn(
+      "python3",
+      [cli, "run", "--config", f.config, "--", process.execPath, "-e", code],
+      { cwd: repository, env: f.env, stdio: "ignore" },
+    );
     t.after(() => wrapper.kill("SIGKILL"));
     await waitFor(() => existsSync(evidence), "isolated command failed to start");
     const child = JSON.parse(readFileSync(evidence, "utf8"));
-    t.after(() => { try { process.kill(child.pid, "SIGKILL"); } catch {} });
+    t.after(() => {
+      try {
+        process.kill(child.pid, "SIGKILL");
+      } catch {}
+    });
     wrapper.kill(signal);
-    await waitFor(() => wrapper.exitCode !== null || wrapper.signalCode !== null, "wrapper did not exit after signal");
+    await waitFor(
+      () => wrapper.exitCode !== null || wrapper.signalCode !== null,
+      "wrapper did not exit after signal",
+    );
     await waitFor(() => !existsSync(child.target), "temporary build outputs remain after signal");
-    assert.throws(() => process.kill(child.pid, 0), "child command remained running after wrapper signal");
+    assert.throws(
+      () => process.kill(child.pid, 0),
+      "child command remained running after wrapper signal",
+    );
   });
 }
 
@@ -235,7 +332,9 @@ for (const rootKind of ["home", "outside home", "symlink ancestor"]) {
     const f = fixture(t);
     const target = cargoTarget(f, "stale");
     let unsafe = f.home;
-    if (rootKind === "outside home") unsafe = dirname(f.home);
+    if (rootKind === "outside home") {
+      unsafe = dirname(f.home);
+    }
     if (rootKind === "symlink ancestor") {
       symlinkSync(f.workspace, join(f.home, "alias"));
       unsafe = join(f.home, "alias", "stale");
@@ -264,8 +363,17 @@ function installerFixture(t) {
   const bin = join(f.home, "bin");
   mkdirSync(bin);
   f.systemctlLog = join(f.home, "systemctl.log");
-  writeFileSync(join(bin, "systemctl"), "#!/usr/bin/env node\nrequire('node:fs').appendFileSync(process.env.SYSTEMCTL_LOG, JSON.stringify(process.argv.slice(2))+'\\n');\n", { mode: 0o755 });
-  f.env = { ...f.env, PATH: bin + ":" + process.env.PATH, SYSTEMCTL_LOG: f.systemctlLog, XDG_CONFIG_HOME: join(f.home, ".config") };
+  writeFileSync(
+    join(bin, "systemctl"),
+    "#!/usr/bin/env node\nrequire('node:fs').appendFileSync(process.env.SYSTEMCTL_LOG, JSON.stringify(process.argv.slice(2))+'\\n');\n",
+    { mode: 0o755 },
+  );
+  f.env = {
+    ...f.env,
+    PATH: bin + ":" + process.env.PATH,
+    SYSTEMCTL_LOG: f.systemctlLog,
+    XDG_CONFIG_HOME: join(f.home, ".config"),
+  };
   return f;
 }
 
@@ -288,18 +396,41 @@ test("installation persists conservative cleanup configuration and enables a dai
   assert.equal(config.packageCaches, true);
   assert.equal(config.minFreeBytes, 53687091200);
   assert.equal(config.restoreFreeBytes, 80530636800);
-  for (const path of [f.workspace, join(f.home, "worktrees"), join(f.home, ".cache/coding-tooling"), join(f.home, ".cache/physics-queue"), join(f.home, ".local/share/coding-agent"), join(f.home, ".cache/coding-agent-builds")]) {
-    assert.ok(config.roots.some((root) => root === path || root.replace(/^~(?=\/)/, f.home) === path), `missing managed root ${path}`);
+  for (const path of [
+    f.workspace,
+    join(f.home, "worktrees"),
+    join(f.home, ".cache/coding-tooling"),
+    join(f.home, ".cache/physics-queue"),
+    join(f.home, ".local/share/coding-agent"),
+    join(f.home, ".cache/coding-agent-builds"),
+  ]) {
+    assert.ok(
+      config.roots.some((root) => root === path || root.replace(/^~(?=\/)/, f.home) === path),
+      `missing managed root ${path}`,
+    );
   }
-  const timer = readFileSync(join(f.home, ".config/systemd/user/coding-agent-disk-maintenance.timer"), "utf8");
+  const timer = readFileSync(
+    join(f.home, ".config/systemd/user/coding-agent-disk-maintenance.timer"),
+    "utf8",
+  );
   assert.match(timer, /OnCalendar=daily/);
   assert.match(timer, /Persistent=true/);
-  const service = readFileSync(join(f.home, ".config/systemd/user/coding-agent-disk-maintenance.service"), "utf8");
+  const service = readFileSync(
+    join(f.home, ".config/systemd/user/coding-agent-disk-maintenance.service"),
+    "utf8",
+  );
   assert.match(service, /maintain.*--apply/);
   assert.ok(existsSync(join(f.home, ".local/share/coding-agent/disk-maintenance.py")));
-  const calls = readFileSync(f.systemctlLog, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+  const calls = readFileSync(f.systemctlLog, "utf8")
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
   assert.ok(calls.some((args) => args.join(" ") === "--user daemon-reload"));
-  assert.ok(calls.some((args) => args.join(" ") === "--user enable --now coding-agent-disk-maintenance.timer"));
+  assert.ok(
+    calls.some(
+      (args) => args.join(" ") === "--user enable --now coding-agent-disk-maintenance.timer",
+    ),
+  );
   const again = invoke(f, ["install", "--workspace", f.workspace, "--apply"]);
   assert.equal(again.status, 0, again.stderr);
   assert.deepEqual(JSON.parse(readFileSync(configPath, "utf8")), config);
@@ -314,4 +445,165 @@ test("installer refuses a foreign runner without overwriting user content", (t) 
   assert.notEqual(result.status, 0);
   assert.equal(readFileSync(runner, "utf8"), "user-owned content\n");
   assert.equal(existsSync(f.systemctlLog), false);
+});
+
+test("unknown nondumpable same-user process blocks cleanup even outside managed roots", async (t) => {
+  const f = fixture(t);
+  const target = cargoTarget(f, "stale");
+  const child = spawn(
+    "python3",
+    [
+      "-c",
+      "import ctypes,time; assert ctypes.CDLL(None).prctl(4,0,0,0,0)==0; print('ready',flush=True); time.sleep(60)",
+    ],
+    { cwd: repository, env: f.env, stdio: ["ignore", "pipe", "pipe"] },
+  );
+  t.after(() => child.kill("SIGKILL"));
+  let ready = false;
+  child.stdout.on("data", () => {
+    ready = true;
+  });
+  await waitFor(() => ready, "nondumpable process failed to become ready");
+  const result = invoke(f, ["maintain", "--config", f.config, "--apply"]);
+  assert.notEqual(
+    result.status,
+    0,
+    "unknown opaque process must report unavailable safety evidence",
+  );
+  assert.ok(existsSync(target), "unknown opaque process allowed deletion");
+});
+
+test("verification ownership markers inside ordinary source folders do not authorize deleting source", (t) => {
+  const f = fixture(t);
+  const source = join(f.workspace, "application", "run-documentation");
+  mkdirSync(source, { recursive: true });
+  writeFileSync(
+    join(source, ".disk-maintenance-run.json"),
+    JSON.stringify({ schemaVersion: 1, owner: "coding-agent-disk-maintenance", pid: 99999999 }),
+  );
+  writeFileSync(join(source, "source.py"), "print('source must survive')\n");
+  ageTree(source, 10);
+  maintain(f, true);
+  assert.equal(readFileSync(join(source, "source.py"), "utf8"), "print('source must survive')\n");
+});
+
+test("package commands explicitly maintain their validated cache despite ambient cache overrides", (t) => {
+  const f = fixture(t, { packageCaches: true, cacheMaxBytes: 1 });
+  const tools = join(f.home, "package-tools");
+  mkdirSync(tools);
+  const log = join(f.home, "package-invocations.jsonl");
+  for (const tool of ["uv", "npm"]) {
+    writeFileSync(
+      join(tools, tool),
+      `#!${process.execPath}\nrequire('node:fs').appendFileSync(process.env.PACKAGE_LOG,JSON.stringify({tool:${JSON.stringify(tool)},args:process.argv.slice(2),env:process.env})+'\\n');\n`,
+      { mode: 0o755 },
+    );
+  }
+  const modules = join(f.home, "python-modules");
+  mkdirSync(join(modules, "pip"), { recursive: true });
+  writeFileSync(join(modules, "pip", "__init__.py"), "");
+  writeFileSync(
+    join(modules, "pip", "__main__.py"),
+    "import json,os,sys\nwith open(os.environ['PACKAGE_LOG'],'a') as f: f.write(json.dumps(dict(tool='pip',args=sys.argv[1:],env=dict(os.environ)))+'\\n')\n",
+  );
+  const paths = {
+    uv: join(f.home, "cache", "uv"),
+    pip: join(f.home, "cache", "pip"),
+    npm: join(f.home, ".npm"),
+  };
+  for (const [tool, path] of Object.entries(paths)) {
+    const content = tool === "npm" ? join(path, "_cacache") : path;
+    mkdirSync(content, { recursive: true });
+    writeFileSync(join(content, "cache-entry"), "regenerable cache");
+  }
+  const ambient = join(f.home, "unmanaged-cache");
+  f.env = {
+    ...f.env,
+    PATH: tools + ":" + process.env.PATH,
+    PACKAGE_LOG: log,
+    PYTHONPATH: modules,
+    UV_CACHE_DIR: ambient,
+    PIP_CACHE_DIR: ambient,
+    npm_config_cache: ambient,
+  };
+  maintain(f, true);
+  const calls = readFileSync(log, "utf8")
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  for (const [tool, expected] of Object.entries(paths)) {
+    const call = calls.find((entry) => entry.tool === tool);
+    assert.ok(call, `missing supported ${tool} cache maintenance command`);
+    const flag = tool === "npm" ? "--cache" : "--cache-dir";
+    const index = call.args.indexOf(flag);
+    const envKey = { uv: "UV_CACHE_DIR", pip: "PIP_CACHE_DIR", npm: "npm_config_cache" }[tool];
+    const actual =
+      index >= 0
+        ? call.args[index + 1]
+        : (call.args.find((arg) => arg.startsWith(flag + "="))?.slice(flag.length + 1) ??
+          call.env[envKey]);
+    assert.equal(actual, expected, `${tool} would clean an unvalidated ambient cache`);
+  }
+});
+
+test("registered legacy verification targets remain eligible for retention", (t) => {
+  const f = fixture(t);
+  const target = cargoTarget(f, "verification", 10, "example-161-target");
+  maintain(f, true);
+  assert.equal(existsSync(target), false);
+});
+
+test("a source checkout nested inside a Cargo-looking output is never removed", (t) => {
+  const f = fixture(t);
+  const target = cargoTarget(f, "nested-source");
+  const source = join(target, "examples", "source");
+  mkdirSync(source, { recursive: true });
+  const result = spawnSync("git", ["init", "-q", source], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+  writeFileSync(join(source, "code.py"), "print('keep source')\n");
+  ageTree(target, 10);
+  maintain(f, true);
+  assert.equal(readFileSync(join(source, "code.py"), "utf8"), "print('keep source')\n");
+});
+
+function controlledFreeSpace(f, expression) {
+  const modules = join(f.home, "controlled-filesystem");
+  mkdirSync(modules);
+  // Simulate filesystem pressure at the OS query boundary, leaving real deletion,
+  // subprocess behavior, discovery and CLI execution intact.
+  writeFileSync(
+    join(modules, "sitecustomize.py"),
+    `import os\nfrom pathlib import Path\n_original_statvfs=os.statvfs\ndef controlled_statvfs(path):\n    original=_original_statvfs(path)\n    fields=list(original)\n    free=${expression}\n    fields[3]=fields[4]=max(0,int(free)//original.f_frsize)\n    return os.statvfs_result(fields)\nos.statvfs=controlled_statvfs\n`,
+  );
+  f.env = { ...f.env, PYTHONPATH: modules };
+}
+
+test("pressure reclamation continues past minimum and stops at restoration reserve", (t) => {
+  const f = fixture(t, { minFreeBytes: 8192, restoreFreeBytes: 16384 });
+  const oldest = cargoTarget(f, "oldest", 4);
+  const middle = cargoTarget(f, "middle", 3);
+  const newest = cargoTarget(f, "newest", 2);
+  const paths = JSON.stringify([oldest, middle, newest]);
+  controlledFreeSpace(f, `4096+8192*sum(not Path(p).exists() for p in ${paths})`);
+  maintain(f, true);
+  assert.equal(existsSync(oldest), false);
+  assert.equal(
+    existsSync(middle),
+    false,
+    "cleanup stopped at minimum instead of restoration reserve",
+  );
+  assert.ok(existsSync(newest), "cleanup continued after restoration reserve was reached");
+});
+
+test("a running verification command is stopped and cleaned when free-space reserve is breached", (t) => {
+  const f = fixture(t, { minFreeBytes: 8192, restoreFreeBytes: 16384 });
+  const pressure = join(f.home, "pressure");
+  const evidence = join(f.home, "started.json");
+  controlledFreeSpace(f, `0 if Path(${JSON.stringify(pressure)}).exists() else 1048576`);
+  const code = `const fs=require('node:fs'); const target=process.env.CARGO_TARGET_DIR; fs.writeFileSync(target+'/output','build'); fs.writeFileSync(${JSON.stringify(evidence)},JSON.stringify({target,pid:process.pid})); fs.writeFileSync(${JSON.stringify(pressure)},'reserve breached'); setInterval(()=>{},1000);`;
+  const result = invoke(f, ["run", "--config", f.config, "--", process.execPath, "-e", code]);
+  assert.notEqual(result.status, 0);
+  const child = JSON.parse(readFileSync(evidence, "utf8"));
+  assert.equal(existsSync(child.target), false, "reserve breach left generated outputs");
+  assert.throws(() => process.kill(child.pid, 0), "command remained alive after reserve breach");
 });
