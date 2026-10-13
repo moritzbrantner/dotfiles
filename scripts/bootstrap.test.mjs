@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { assertSupportedPlatform } from "./bootstrap.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const bootstrap = join(root, "scripts/bootstrap.mjs");
@@ -58,6 +59,16 @@ test("apply installs existing targets, then remains idempotent", (t) => {
   const home = fixture(t);
   const result = run(home, ["--apply"]);
   assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Plan:/);
+  const applying = result.stdout.indexOf("Applying:");
+  assert.ok(applying > result.stdout.indexOf("Plan:"), "plan must be printed before changes");
+  for (const target of [".gitconfig", ".editorconfig", ".config/git/ignore",
+    ".local/share/coding-agent/workctl.mjs",
+    ...skills.map((s) => `.agents/skills/${s}`),
+    ...skills.map((s) => `.claude/skills/${s}`)]) {
+    const i = result.stdout.indexOf(target);
+    assert.ok(i >= 0 && i < applying, `missing pre-apply preview for ${target}`);
+  }
   for (const path of [".gitconfig", ".editorconfig", ".config/git/ignore"]) {
     assertLink(home, path, path);
   }
@@ -136,37 +147,59 @@ test("WSL configures remote machine settings but not Windows-hosted settings", (
   assert.equal(existsSync(join(home, ".config/Code/User/settings.json")), false);
 });
 
-test("refuses unsupported native Windows and never touches HOME", (t) => {
+test("native Windows is explicitly rejected before setup or mutation", (t) => {
   const home = fixture(t);
-  const result = spawnSync(process.execPath, [bootstrap, "--apply"], {
-    env: environment(home, { WSL_DISTRO_NAME: "", WSL_INTEROP: "" }),
-    encoding: "utf8", timeout: 10000,
-  });
-  // On the Linux test runner this is an ordinary Linux execution.
-  if (process.platform === "linux") {
-    assert.equal(result.status, 0, result.stderr);
-  }
+  assert.throws(() => assertSupportedPlatform("win32"), /Linux|WSL|unsupported/i);
+  assert.doesNotThrow(() => assertSupportedPlatform("linux"));
+  assert.deepEqual(readdirSync(home), []);
 });
 
-test("interactive approval merges missing preferences while preserving existing values", (t) => {
-  const home = fixture(t);
-  const target = join(home, ".config/Code/User/settings.json");
-  mkdirSync(dirname(target), { recursive: true });
-  writeFileSync(target, '{\n  "editor.minimap.enabled": true,\n  "custom.preference": 42\n}\n');
-  const commandExists = spawnSync("script", ["--version"], { encoding: "utf8" });
-  if (commandExists.error?.code === "ENOENT") {
-    t.skip("util-linux script is required for a pseudo-terminal acceptance run");
-    return;
-  }
+function interactiveApply(home, answer) {
   const shellQuote = (s) => "'" + s.replaceAll("'", "'\\''") + "'";
   const command = shellQuote(process.execPath) + " " + shellQuote(bootstrap) + " --apply";
-  const result = spawnSync("script", ["-q", "-e", "-c", command, "/dev/null"], {
+  return spawnSync("script", ["-q", "-e", "-c", command, "/dev/null"], {
     cwd: root, env: environment(home),
-    input: "y\n", encoding: "utf8", timeout: 12000,
+    input: answer + "\n", encoding: "utf8", timeout: 12000,
   });
+}
+
+function existingPreferences(home) {
+  const target = join(home, ".config/Code/User/settings.json");
+  mkdirSync(dirname(target), { recursive: true });
+  const original = '{\n  "editor.minimap.enabled": true,\n  "custom.preference": 42\n}\n';
+  writeFileSync(target, original);
+  return { target, original };
+}
+
+function requirePseudoterminal(t) {
+  if (spawnSync("script", ["--version"]).error?.code === "ENOENT") {
+    t.skip("util-linux script is required for a pseudo-terminal acceptance run");
+    return false;
+  }
+  return true;
+}
+
+test("interactive approval merges every missing preference without changing overrides", (t) => {
+  if (!requirePseudoterminal(t)) return;
+  const home = fixture(t);
+  const { target } = existingPreferences(home);
+  const result = interactiveApply(home, "y");
   assert.equal(result.status, 0, result.stderr + result.stdout);
   const merged = JSON.parse(readFileSync(target, "utf8"));
-  assert.equal(merged["editor.minimap.enabled"], true);
-  assert.equal(merged["custom.preference"], 42);
-  assert.equal(merged["editor.rulers"][0], 100);
+  assert.deepEqual(merged, {
+    ...settingsTemplate,
+    "editor.minimap.enabled": true,
+    "custom.preference": 42,
+  });
+});
+
+test("declined permission preserves settings and still installs other links", (t) => {
+  if (!requirePseudoterminal(t)) return;
+  const home = fixture(t);
+  const { target, original } = existingPreferences(home);
+  const result = interactiveApply(home, "n");
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  assert.match(result.stdout, /skip.*VS Code|VS Code.*skip/i);
+  assert.equal(readFileSync(target, "utf8"), original);
+  assertLink(home, ".gitconfig", ".gitconfig");
 });
