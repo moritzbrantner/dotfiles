@@ -109,6 +109,7 @@ new Decision Atlas entry types or GitHub labels.
 - **Decide:** Present an existing consequential Question or a newly discovered fork.
   Explain why the choice matters and offer 2–3 genuinely different A/B/C outcomes with
   brief trade-offs and a grounded recommendation when useful. An open answer is valid.
+  Avoid false choices: Do not ask questions where one option subsumes the others or where a sensible default with targeted overrides resolves the alternatives; ask only when there is a genuine, consequential trade-off that requires the owner's judgment.
 - **Approve:** Show the exact proposed product statement, scenario or acceptance criterion,
   its affected scope and any material consequences. Ask whether to accept, adjust or
   defer it. Never call an agent suggestion owner-approved without an explicit answer.
