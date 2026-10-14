@@ -8,13 +8,21 @@ operationally authoritative. For the existing detailed work-loop flowchart, see 
 
 ## 1. Your loop — use `/steer`
 
-Start in the repository you want to shape. The agent identifies **one meaningful human
-judgment at a time**. It must not treat a green CI check as your product approval.
+Start in the repository you want to shape. Either answer a guided interview or speak
+freely while the agent groups, reconciles and records clear ideas. Unsettled or
+contradictory choices become **one meaningful human question at a time**. A green CI
+check is not your product approval.
 
 ```mermaid
 flowchart TD
     S(["You invoke /steer"]) --> READ["Read repository rules, Atlas and product evidence"]
-    READ --> ACTION{"What needs your judgment?"}
+    READ --> MODE{"How is the owner steering?"}
+    MODE -->|Guided interview| ACTION{"What needs your judgment?"}
+    MODE -->|Free-form ideas| COLLECT["Collect the owner's full ideas"]
+    COLLECT --> SYNTH["Group by feature, map Atlas IDs, check conflicts and existing work"]
+    SYNTH -->|Clear owner directives| PERSIST
+    SYNTH -->|Ambiguous or contradictory| ACTION
+    SYNTH -->|Nonblocking unknowns| QUESTION
     ACTION -->|Define, decide, approve or revise| ASK["Ask one concrete question"]
     ASK --> ANSWER["You answer, adjust or defer"]
     ANSWER --> RESOLVED{"Intent settled?"}
@@ -168,9 +176,11 @@ rather than imposing a competing Atlas.
 
 ## What you actually do
 
-Launch `/steer`, answer one concrete product question (or try one real scenario), and
-adjust or approve the outcome. The agent records approved intent in a reviewable
-repository change and **automatically reconciles only necessary bounded GitHub issues**.
+Launch `/steer` for one concrete product question or `/steer discuss` to speak freely
+about several ideas. In discussion mode the agent synthesizes features, identifies
+existing decisions and conflicts, and asks only consequential follow-ups. The agent
+records explicit owner intent in a reviewable repository change and **automatically
+reconciles only necessary bounded GitHub issues**.
 Issues referencing unmerged product-intent PRs remain non-actionable until that source merges.
 A separately invoked `/work-loop` then handles implementation, technical verification,
 review, guarded merge and published-scenario checks. If the visible result is wrong, return to `/steer` to
