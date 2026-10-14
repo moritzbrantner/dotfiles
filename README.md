@@ -69,12 +69,12 @@ Copy or symlink these into a project when appropriate, then keep project-specifi
 
 ## Coding-agent workflow
 
-**Design first for new products and major features:** `grill` → owning Decision Atlas / existing product docs → `issue-preflight` → implementation issues → `work-loop`. Already-specified work, routine bugs and refactors can enter the loop directly. No second scheduler or queue is needed.
+**Design first for new products and major features:** `/steer` (guided interview or free-form idea discussion, using `grill` for consequential forks) → owning Decision Atlas / existing product docs → `issue-preflight` → implementation issues → `work-loop`. Already-specified work, routine bugs and refactors can enter the loop directly. No second scheduler or queue is needed.
 
 Implementation work runs through one global loop over GitHub issues. Product decisions use one
 human-facing entry point backed by the existing specialist skills, without another loop:
 
-- `skills/steer` — run `/steer` in the current repository to inspect authoritative intent, ask the next consequential owner question, record approved Decisions/Questions, guide real-product acceptance, and **automatically reconcile necessary bounded GitHub issues** through `issue-preflight`. It reuses `grill`, `atlas-audit`, `unblock`, and `acceptance-contract`; it never starts implementation or merges PRs. Issues derived from unmerged Atlas PRs remain non-actionable until that source lands.
+- `skills/steer` — run `/steer` in the current repository either as a **guided interview** (one consequential A/B/C question at a time) or as a **free-form discussion** (describe multiple ideas; the agent groups them by feature, reconciles them with existing Atlas entries, asks about material conflicts, and records clear owner intent). Both modes **automatically reconcile approved, durably recorded Decisions into necessary bounded GitHub issues** through `issue-preflight`, reusing `grill`, `atlas-audit`, `unblock`, and `acceptance-contract`. Tentative ideas remain Questions, not automatic implementation work; the skill never implements or merges PRs. Issues derived from unmerged Atlas PRs remain non-actionable until that source lands.
 
 - `skills/work-loop` — finish existing PRs, inspect repository-owned product acceptance evidence, pick an actionable blocker or urgent correctness issue, work in its repository by that repository's `AGENTS.md`, validate, update GitHub, repeat. Its `workctl.mjs` helper scans the open PR backlog, deterministically reports PR readiness, rejects stacked PR bases, and guards merges. A dependency on another repository becomes an issue there.
 - `skills/unblock` — resolve blocking Questions discovered during execution; record owner answers in the Atlas when present, then link and unblock the issue.
@@ -140,16 +140,19 @@ flowchart TD
     classDef action fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111;
 ```
 
-For a general human product-direction session, use `/steer` from a repository (for example,
-`/steer combat`). It inspects the current Atlas and product evidence, selects one useful
-**define / decide / approve / revise / verify** action, asks one question at a time, and records
-accepted intent. It automatically updates existing relevant GitHub issues or creates only
-necessary bounded issues without an extra confirmation; implementation still runs separately
-through `/work-loop`. You can invoke specialist skills directly when needed.
+For a guided session, use `/steer combat` to inspect current intent and answer one
+consequential **define / decide / approve / revise / verify** question at a time. For a
+free-form session, use `/steer discuss combat` or simply start describing ideas: the agent
+collects them, sorts them by product feature, compares prior Decisions/Questions and
+issues, records unambiguous owner intent, and asks one question at a time only to resolve
+material gaps or contradictions. Both modes update existing relevant issues or create
+only necessary bounded ones after approved intent is recorded, without extra permission;
+implementation runs separately through `/work-loop`. You can invoke specialist skills
+directly when needed.
 
 To define a new product or major feature, invoke `grill` first (for example, "/grill ARPG combat architecture"). It asks one consequential question at a time, normally 3–5 per session, with concrete illustrated A/B/C alternatives for visual choices, and persists the answers in the repository-owned Atlas when present. Use scoped `daq` queries to reuse settled decisions; when the tool is unavailable, read the relevant Markdown. Only then use `issue-preflight` to turn that direction into bounded implementation issues. During work, `unblock` is the fallback for genuinely new blocking Questions. Neither skill requires a new global database, label, or queue. The work loop also invokes `acceptance-contract` for behavior and architecture changes. Independent acceptance authorship is a procedural handoff, not something a commit author or code review alone can prove.
 
-**Using this skill in ChatGPT:** With GitHub connected, say: **"Use the [grill skill](https://github.com/moritzbrantner/dotfiles/blob/main/skills/grill/SKILL.md) for my ARPG; show example pictures for A/B/C and ask one concrete question at a time."** ChatGPT can read the current GitHub file and follow it. This repository link does not register a native ChatGPT slash command; refer to the skill explicitly when you want that workflow. For voice-only use, the short spoken option descriptions must stand on their own without images.
+**Using these skills in ChatGPT:** With GitHub connected, ask for the [steer skill](https://github.com/moritzbrantner/dotfiles/blob/main/skills/steer/SKILL.md) in interview mode, or say "Use /steer for Scrabble; I'll talk freely and you organize the ideas into the Decision Atlas, clarify contradictions and reconcile issues." For a design-only interview you can also invoke the [grill skill](https://github.com/moritzbrantner/dotfiles/blob/main/skills/grill/SKILL.md). ChatGPT can read the current GitHub files and follow them. This repository link does not register a native ChatGPT slash command; refer to the skill explicitly when you want that workflow. For voice-only use, the short spoken option descriptions must stand on their own without images.
 
 For a manual installation **instead of the bootstrap**, link Claude Code and Codex skills:
 

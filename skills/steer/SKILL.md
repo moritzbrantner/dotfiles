@@ -1,6 +1,6 @@
 ---
 name: steer
-description: Guide owner product decisions and verification; automatically reconcile approved intent into bounded GitHub issues without starting implementation.
+description: Guide owner product decisions and verification through interviews or free-form brainstorming; synthesize Decision Atlas entries and reconcile approved GitHub issues without implementation.
 ---
 
 # Steer
@@ -13,6 +13,24 @@ Run `/steer` from a repository, optionally adding a feature or subsystem.
 A request like "steer this repository" is equivalent when slash skills are unavailable.
 Keep the scope to that repository or one named subsystem; follow relevant cross-repository
 contracts only when they affect the choice.
+
+## Two ways to steer
+
+Use the **same Atlas authority and issue handoff** in either mode. Infer the mode
+from the owner's input; do not require a mode-selection question or special flag.
+
+- **Guided interview:** When the owner asks to be guided, investigate existing
+  intent and ask the next consequential product question, one at a time.
+  Use concrete A/B/C alternatives when there is a genuine fork.
+- **Free-form discussion:** When the owner starts describing ideas, listen to the
+  whole message or uninterrupted sequence first. Then synthesize, group and
+  compare the ideas with existing Decisions, Questions and issues. Clarify only
+  material ambiguity or conflict; do not force a monologue into A/B/C questions.
+
+Switch naturally between modes, including when a free-form discussion leads to
+one focused follow-up or the owner resumes brainstorming. A request to wrap up
+means persist and reconcile what is settled, retain unresolved Questions and
+finish rather than launching another interview.
 
 ## Orient before asking
 
@@ -79,7 +97,7 @@ mean **owner-approved**, not implemented. Always consult that repository's actua
 authoring rules and parser capabilities. A currently unindexed source remains the
 authority; do not silently invent DAQ support or an implementation claim.
 
-## Guide one human action at a time
+## Guided interview: one human action at a time
 
 Choose **one** of the following conversational actions. These are activities, **not**
 new Decision Atlas entry types or GitHub labels.
@@ -91,6 +109,7 @@ new Decision Atlas entry types or GitHub labels.
 - **Decide:** Present an existing consequential Question or a newly discovered fork.
   Explain why the choice matters and offer 2–3 genuinely different A/B/C outcomes with
   brief trade-offs and a grounded recommendation when useful. An open answer is valid.
+  Avoid false choices: Do not ask questions where one option subsumes the others or where a sensible default with targeted overrides resolves the alternatives; ask only when there is a genuine, consequential trade-off that requires the owner's judgment.
 - **Approve:** Show the exact proposed product statement, scenario or acceptance criterion,
   its affected scope and any material consequences. Ask whether to accept, adjust or
   defer it. Never call an agent suggestion owner-approved without an explicit answer.
@@ -108,10 +127,52 @@ keep the options short and self-contained; images and code must not be required.
 `skip` or `later` retains a nonblocking Question; `I don't care` delegates a
 routine implementation detail, not a consequential product decision.
 
+## Free-form discussion: synthesize and reconcile
+
+1. **Capture before questioning.** Accept multiple ideas, examples, corrections
+   and feature areas in the owner's own order, including rough voice input.
+   Do not interrupt the stream with a questionnaire or prematurely pick an MVP.
+   When the owner signals that they are continuing, keep accumulating context;
+   synthesize at a natural pause or when they ask to sort or finish.
+2. **Organize by product capability and user journey**, not the order mentioned
+   or an engineering work breakdown. Identify the owning repository for shared
+   capabilities; a consumer's desired behavior does not automatically change
+   another repository's contract. For each distinct idea, compare the current
+   feature-oriented Atlas, relevant open documentation PRs, issues (open and
+   closed), PRs, implementation and acceptance evidence. Map existing IDs and
+   deduplicate before proposing new ones.
+3. **Separate intent from exploration.** An unequivocal owner directive
+   (for example, "I want users to switch between two board shapes") is a
+   decision to record, without redundant reapproval. "Maybe", "what if",
+   contrasting possibilities, examples and agent extrapolations are not
+   approved product requirements. Keep consequential uncertainty as Questions,
+   and distinguish an experimental option from a promise to ship it as the
+   default. Ordinary bugs or implementation tasks belong in issues, not the
+   Atlas. Do not silently turn a suggestion into a Decision.
+4. **Reconcile conflicts explicitly.** Detect contradictions within the new
+   ideas, against current Decisions, or across repository boundaries. Show the
+   shortest faithful synthesis: clear owner choices, existing coverage,
+   proposed Questions and the material conflicts, with existing IDs where
+   possible. If an interpretation would materially alter intent, ask **one
+   prioritized clarification at a time**; use A/B/C only when alternatives
+   genuinely help. Never settle a conflict by guessing, recency or existing
+   implementation. Nonblocking Questions may remain open.
+5. **Persist in useful batches.** Record clear directives and outstanding
+   material Questions under their feature areas, following the owning Atlas's
+   stable-ID and revision rules. Accept corrections to the synthesis; revise
+   affected statements instead of layering duplicate entries. Use a reviewable
+   PR, preferably the existing relevant Atlas PR. After durable owner-approved
+   Decisions, run the same automatic issue reconciliation below; unapproved
+   ideas and unresolved Questions must not generate speculative issues.
+   Do not defer all persistence until a later session or turn. If the owner
+   ends the discussion, finish the recorded subset and report gaps without
+   inventing answers.
+
 ## Record the owner's answer
 
-1. Treat the owner's explicit answer as the authorization to record **that answer**;
-   do not ask for a redundant second confirmation. State uncertainty when the response
+1. Treat an explicit interview answer or unambiguous free-form product directive as
+   authorization to record **that intent**; do not ask for a redundant second
+   confirmation. State uncertainty when the response
    does not settle the choice. Never invent owner approval from tests, code, chat
    suggestions or a proposed PR.
 2. Persist the choice in the **owning repository**, following its existing Atlas format.
@@ -207,8 +268,10 @@ product intent.
 
 ## Continue or finish
 
-Normally ask 3–5 useful questions per session at most; continue longer only at the
-owner's request, and stop immediately if they say to stop. After each approved
+In **guided interviews**, normally ask 3–5 useful questions per session at most;
+continue longer only at the owner's request. **Free-form discussion has no question
+quota**: synthesize each natural batch, ask only material follow-ups, and stop
+immediately when the owner says to stop. After each recorded batch or approved
 answer, reconcile implementation issues as above before moving on; never make
 the owner remember a separate "create issues" instruction. Then find the next
 highest-impact *unresolved* human action instead of mechanically iterating
@@ -222,9 +285,13 @@ Report what was **not** checked or approved. Do not report completion from issue
 
 ## Invocation
 
-- **Claude Code / Codex:** `/steer` or `/steer <subsystem>` with this directory
-  linked into the agent's skills directory as described in `dotfiles/README.md`.
+- **Claude Code / Codex:** `/steer <subsystem>` for a guided interview; `/steer
+  discuss <subsystem>` followed by free-form ideas for synthesis. Neither syntax
+  is required when the owner's intent already establishes the mode. Link the
+  skill as described in `dotfiles/README.md`.
 - **ChatGPT with GitHub:** "Follow the `steer` skill from
   `moritzbrantner/dotfiles/skills/steer/SKILL.md` for <repository>; ask me the next
-  consequential product question." Read the current skill source. A GitHub file is
-  not automatically a native ChatGPT slash command.
+  consequential product question" **or** "Use that skill for <repository>; I'll
+  describe ideas freely, then organize them into Atlas Decisions and Questions,
+  clarify conflicts and reconcile issues." Read the current skill source. A
+  GitHub file is not automatically a native ChatGPT slash command.
