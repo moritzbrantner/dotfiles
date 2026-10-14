@@ -68,11 +68,13 @@ Required decision: create the smallest issue in B, record it as a native
 instructions, acceptance, review and merge rules with its own issue and PR, then
 update A's dependency after B's change merges (and publishes, if A pins a
 release) and resume A. Skip B and report when its checkout has unrelated
-uncommitted changes or another active worker owns it.
+uncommitted changes, or when another worker still owns it without an exact
+branch/PR handoff, including a worker that is stopped or rate-limited while its
+checkout is clean between commits.
 
 Prohibited result: implement both repositories from one issue or PR, stack PRs
 across repositories, leave A's issue parked only because the owner named A, or
-run two implementations at once.
+run two implementations at once, or treat a clean checkout as unowned.
 
 ## Authority and boundary checks
 
