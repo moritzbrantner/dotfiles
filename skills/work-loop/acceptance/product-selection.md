@@ -54,6 +54,26 @@ Baseline observation: step 2 handles each repository's local priority and blocke
 but declares no cross-repository comparison or tie behavior, so this fixture
 fails its policy review. This scenario reviews instructions, not future execution.
 
+## Upstream dependency regression
+
+Owner decision 2026-10-14: a worker scoped to one repository may follow a
+blocking dependency into the repository that owns the missing capability.
+
+Fixture: the owner starts the loop for repository A only. A's selected blocker
+needs a capability owned by repository B, which A consumes. B's checkout is clean
+and no other worker owns it.
+
+Required decision: create the smallest issue in B, record it as a native
+`blockedBy` dependency of A's issue, implement it in B under B's own
+instructions, acceptance, review and merge rules with its own issue and PR, then
+update A's dependency after B's change merges (and publishes, if A pins a
+release) and resume A. Skip B and report when its checkout has unrelated
+uncommitted changes or another active worker owns it.
+
+Prohibited result: implement both repositories from one issue or PR, stack PRs
+across repositories, leave A's issue parked only because the owner named A, or
+run two implementations at once.
+
 ## Authority and boundary checks
 
 ### Current Atlas authority during selection
