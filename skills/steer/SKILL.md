@@ -1,6 +1,6 @@
 ---
 name: steer
-description: Guide owner product decisions and verification; automatically reconcile approved intent into bounded GitHub issues without starting implementation.
+description: Guide owner product decisions and verification through interviews or free-form brainstorming; synthesize Decision Atlas entries and reconcile approved GitHub issues without implementation.
 ---
 
 # Steer
