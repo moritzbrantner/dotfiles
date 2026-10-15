@@ -13,7 +13,7 @@ import {
   mergePolicy,
   parseTarget,
   selectMergeMethod,
-  unansweredCodexFindings,
+  unansweredBlockingCodexFindings,
 } from "./workctl.mjs";
 
 test("CLI entry point follows symlinks while imports remain inert", () => {
@@ -98,7 +98,7 @@ test("CI states", () => {
   );
 });
 
-test("Codex review must complete on current head without a round-limit escape hatch", () => {
+test("Codex review status is informational rather than a latest-head merge gate", () => {
   const user = { login: "chatgpt-codex-connector[bot]", id: 199175422 };
   const completed = {
     user,
@@ -106,52 +106,69 @@ test("Codex review must complete on current head without a round-limit escape ha
       "<!-- codex-pull-request-review-summary -->\n" +
       "| 📝 **Code Review** | ✅ **Completed** now | `ef9ecb8` | Manual |",
   };
-
-  assert.equal(codexReview([completed], "ef9ecb8b76ff").state, "complete");
-  assert.deepEqual(codexReview([completed], "aaaaaaaa"), {
-    state: "pending",
-    reason: "Codex reviewed stale commit ef9ecb8",
+  assert.deepEqual(codexReview([completed], "ef9ecb8b76ff"), {
+    state: "complete",
+    commit: "ef9ecb8",
   });
+  assert.deepEqual(codexReview([completed], "aaaaaaaa"), {
+    state: "stale",
+    commit: "ef9ecb8",
+  });
+  assert.equal(codexReview([], "aaaaaaaa").state, "absent");
   assert.equal(
-    codexReview(
-      [{ ...completed, body: completed.body.replace("Completed", "Running") }],
-      "ef9ecb8b76ff",
-    ).state,
-    "pending",
+    codexReview([{ ...completed, body: completed.body.replace("Completed", "Running") }], "ef9ecb8")
+      .state,
+    "running",
   );
   assert.equal(
-    codexReview([{ ...completed, user: { login: "fake-codex-user", id: 123 } }], "ef9ecb8b76ff")
+    codexReview([{ ...completed, body: completed.body.replace("`ef9ecb8`", "") }], "ef9ecb8")
       .state,
-    "pending",
+    "unknown",
+  );
+  assert.equal(
+    codexReview([{ ...completed, user: { login: "fake-codex-user", id: 123 } }], "ef9ecb8")
+      .state,
+    "absent",
   );
 });
 
-test("Codex finding is answered by a non-Codex reply", () => {
+test("only untriaged high-priority Codex comments block readiness", () => {
   const codex = { login: "chatgpt-codex-connector[bot]", id: 199175422 };
-  assert.equal(unansweredCodexFindings([{ id: 1, in_reply_to_id: null, user: codex }]), 1);
+  const report = (id, priority) => ({
+    id,
+    in_reply_to_id: null,
+    user: codex,
+    body: `**![${priority} Badge](url) Defect**\nEvidence`,
+  });
+  const p0 = report(1, "P0");
+  const p1 = report(2, "P1");
+  const p2 = report(3, "P2");
+  const p3 = report(4, "P3");
+  assert.equal(unansweredBlockingCodexFindings([p0, p1, p2, p3]), 2);
+  assert.equal(unansweredBlockingCodexFindings([p2, p3]), 0);
   assert.equal(
-    unansweredCodexFindings([
-      { id: 1, in_reply_to_id: null, user: codex },
-      {
-        id: 2,
-        in_reply_to_id: 1,
-        user: { login: "owner" },
-        author_association: "OWNER",
-      },
+    unansweredBlockingCodexFindings([
+      { ...p2, body: "**Possible regression**\nP1 mentioned in the explanation." },
     ]),
     0,
   );
   assert.equal(
-    unansweredCodexFindings([
-      { id: 1, in_reply_to_id: null, user: codex },
-      {
-        id: 2,
-        in_reply_to_id: 1,
-        user: { login: "random-user" },
-        author_association: "NONE",
-      },
+    unansweredBlockingCodexFindings([
+      p1,
+      { id: 5, in_reply_to_id: 2, user: { login: "owner" }, author_association: "OWNER" },
+    ]),
+    0,
+  );
+  assert.equal(
+    unansweredBlockingCodexFindings([
+      p1,
+      { id: 6, in_reply_to_id: 2, user: { login: "stranger" }, author_association: "NONE" },
     ]),
     1,
+  );
+  assert.equal(
+    unansweredBlockingCodexFindings([{ ...p1, user: { login: "spoofed" } }]),
+    0,
   );
 });
 
@@ -165,10 +182,13 @@ test("PR classification", () => {
     },
     checks: { state: "green", failed: [], pending: [] },
     review: { state: "complete" },
-    unanswered: 0,
+    blockingFindings: 0,
   };
 
   assert.equal(classify(ready).state, "ready");
+  for (const review of [{ state: "absent" }, { state: "running" }, { state: "stale" }]) {
+    assert.equal(classify({ ...ready, review }).state, "ready");
+  }
   assert.equal(
     classify({
       ...ready,
@@ -176,7 +196,7 @@ test("PR classification", () => {
     }).state,
     "waiting",
   );
-  assert.equal(classify({ ...ready, unanswered: 1 }).state, "broken");
+  assert.equal(classify({ ...ready, blockingFindings: 1 }).state, "broken");
   assert.equal(
     classify({
       ...ready,
@@ -204,7 +224,7 @@ test("PR classification", () => {
   );
 });
 
-test("Renovate PRs skip Codex review but retain all other merge gates", () => {
+test("Renovate PRs skip review and all PRs retain CI and defect gates", () => {
   const pr = {
     state: "open",
     draft: false,
@@ -215,8 +235,8 @@ test("Renovate PRs skip Codex review but retain all other merge gates", () => {
   const ready = {
     pr,
     checks: { state: "green", failed: [], pending: [] },
-    review: { state: "pending", reason: "no Codex review" },
-    unanswered: 0,
+    review: { state: "absent" },
+    blockingFindings: 0,
   };
 
   assert.deepEqual(classify(ready), { state: "ready", reasons: [] });
@@ -225,7 +245,7 @@ test("Renovate PRs skip Codex review but retain all other merge gates", () => {
     { login: "dependabot[bot]", type: "Bot" },
     { login: "renovate[bot]", type: "User" },
   ]) {
-    assert.equal(classify({ ...ready, pr: { ...pr, user } }).state, "waiting");
+    assert.equal(classify({ ...ready, pr: { ...pr, user } }).state, "ready");
   }
   assert.equal(
     classify({ ...ready, checks: { state: "pending", failed: [], pending: ["ci"] } }).state,
@@ -235,7 +255,7 @@ test("Renovate PRs skip Codex review but retain all other merge gates", () => {
     classify({ ...ready, checks: { state: "failed", failed: ["ci"], pending: [] } }).state,
     "broken",
   );
-  assert.equal(classify({ ...ready, unanswered: 1 }).state, "broken");
+  assert.equal(classify({ ...ready, blockingFindings: 1 }).state, "broken");
   assert.equal(
     classify({ ...ready, pr: { ...pr, mergeable: false, mergeable_state: "dirty" } }).state,
     "broken",
@@ -357,6 +377,14 @@ process.stdout.write(JSON.stringify(value));
             number: 23,
             repository_url: "https://api.github.com/repos/moritzbrantner/dotfiles",
           },
+          {
+            number: 24,
+            repository_url: "https://api.github.com/repos/moritzbrantner/dotfiles",
+          },
+          {
+            number: 25,
+            repository_url: "https://api.github.com/repos/moritzbrantner/dotfiles",
+          },
         ],
       },
     ],
@@ -399,6 +427,40 @@ process.stdout.write(JSON.stringify(value));
     "repos/moritzbrantner/dotfiles/commits/3333333ccccccccccccccccccccccccccccccccc/status?per_page=100":
       [{ statuses: [] }],
     "repos/moritzbrantner/dotfiles/pulls/23/comments?per_page=100": [[]],
+    "repos/moritzbrantner/dotfiles/pulls/24": {
+      state: "open",
+      draft: false,
+      user: { login: "owner", type: "User" },
+      head: { sha: "4444444ddddddddddddddddddddddddddddddddd" },
+      base: { ref: "main" },
+      mergeable: true,
+      mergeable_state: "clean",
+    },
+    "repos/moritzbrantner/dotfiles/commits/4444444ddddddddddddddddddddddddddddddddd/check-runs?filter=latest&per_page=100":
+      [{ check_runs: [] }],
+    "repos/moritzbrantner/dotfiles/commits/4444444ddddddddddddddddddddddddddddddddd/status?per_page=100":
+      [{ statuses: [] }],
+    "repos/moritzbrantner/dotfiles/issues/24/comments?per_page=100": [[]],
+    "repos/moritzbrantner/dotfiles/pulls/24/comments?per_page=100": [
+      [{ id: 88, in_reply_to_id: null, user: codex, body: "**[P2] Advisory finding**" }],
+    ],
+    "repos/moritzbrantner/dotfiles/pulls/25": {
+      state: "open",
+      draft: false,
+      user: { login: "owner", type: "User" },
+      head: { sha: "5555555eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" },
+      base: { ref: "main" },
+      mergeable: true,
+      mergeable_state: "clean",
+    },
+    "repos/moritzbrantner/dotfiles/commits/5555555eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee/check-runs?filter=latest&per_page=100":
+      [{ check_runs: [] }],
+    "repos/moritzbrantner/dotfiles/commits/5555555eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee/status?per_page=100":
+      [{ statuses: [] }],
+    "repos/moritzbrantner/dotfiles/issues/25/comments?per_page=100": [[]],
+    "repos/moritzbrantner/dotfiles/pulls/25/comments?per_page=100": [
+      [{ id: 89, in_reply_to_id: null, user: codex, body: "**[P1] Blocking finding**" }],
+    ],
     "repos/moritzbrantner/dotfiles/pulls/22": {
       state: "open",
       draft: false,
@@ -420,12 +482,17 @@ process.stdout.write(JSON.stringify(value));
     });
     assert.equal(result.status, 0, result.stderr);
     const output = JSON.parse(result.stdout);
-    assert.deepEqual(output.summary, { total: 3, ready: 2, broken: 0, waiting: 1 });
+    assert.deepEqual(output.summary, { total: 5, ready: 3, broken: 1, waiting: 1 });
     assert.equal(output.ready[0].pr, "moritzbrantner/dotfiles#21");
     assert.equal(
       output.ready.find((item) => item.pr === "moritzbrantner/dotfiles#23")?.review,
       "skipped",
     );
+    assert.equal(
+      output.ready.find((item) => item.pr === "moritzbrantner/dotfiles#24")?.review,
+      "absent",
+    );
+    assert.match(output.broken[0].reasons[0], /unanswered high-priority Codex finding/);
     assert.deepEqual(output.waiting[0].reasons, [
       "base agent/parent is not default branch main",
     ]);

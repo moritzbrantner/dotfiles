@@ -127,7 +127,7 @@ flowchart TD
     CHANGE -->|Yes| CONTRACT["acceptance-contract: independent tests first"]
     CHANGE -->|No, truly preserved| IMPLEMENT["One worker implements a bounded slice"]
     CONTRACT --> IMPLEMENT
-    IMPLEMENT --> CHECK["Affected tests, browser preview, CI, targeted review"]
+    IMPLEMENT --> CHECK["Affected tests, browser preview, CI; targeted review if warranted"]
     CHECK --> PASS{"All gates pass?"}
     PASS -->|No| IMPLEMENT
     PASS -->|Yes| MERGE["Guarded merge"]

@@ -104,27 +104,28 @@ export function codexReview(issueComments, head) {
       /codex-pull-request-review-summary|Codex Review Summary/i.test(comment.body ?? ""),
     )
     .sort((a, b) => time(b) - time(a))[0];
-  if (!summary) return { state: "pending", reason: "no Codex review" };
+  if (!summary) return { state: "absent" };
 
   const row = (summary.body ?? "")
     .split("\n")
     .filter((line) => /^\|/.test(line) && /Code Review/i.test(line))
     .at(-1);
   if (!row || !/Completed/i.test(row)) {
-    return { state: "pending", reason: "Codex review running" };
+    return { state: "running" };
   }
 
   const commit = row.match(/`([0-9a-f]{7,40})`/i)?.[1]?.toLowerCase();
-  if (!commit || !head.toLowerCase().startsWith(commit)) {
-    return {
-      state: "pending",
-      reason: commit ? `Codex reviewed stale commit ${commit}` : "Codex review commit unknown",
-    };
-  }
+  if (!commit) return { state: "unknown" };
+  if (!head.toLowerCase().startsWith(commit)) return { state: "stale", commit };
   return { state: "complete", commit };
 }
 
-export function unansweredCodexFindings(comments) {
+function isHighPriorityCodexFinding(comment) {
+  const heading = (comment.body ?? "").split("\n", 1)[0];
+  return /\bP[01]\s+Badge\b|\[P[01]\]/i.test(heading);
+}
+
+export function unansweredBlockingCodexFindings(comments) {
   const replies = new Map();
   for (const comment of comments) {
     if (comment.in_reply_to_id == null) continue;
@@ -134,6 +135,7 @@ export function unansweredCodexFindings(comments) {
     (comment) =>
       comment.in_reply_to_id == null &&
       isCodex(comment.user) &&
+      isHighPriorityCodexFinding(comment) &&
       !(replies.get(comment.id) ?? []).some(
         (reply) => !isCodex(reply.user) && TRUSTED_ASSOCIATIONS.has(reply.author_association),
       ),
@@ -172,7 +174,7 @@ function latestStatuses(statusPages) {
   return [...latest.values()];
 }
 
-export function classify({ pr, checks, review, unanswered, defaultBranch }) {
+export function classify({ pr, checks, blockingFindings, defaultBranch }) {
   const baseReason = nonDefaultBaseReason(pr, defaultBranch);
   if (baseReason) return { state: "waiting", reasons: [baseReason] };
 
@@ -196,12 +198,11 @@ export function classify({ pr, checks, review, unanswered, defaultBranch }) {
     state = "waiting";
     reasons.push(`pending checks: ${checks.pending.join(", ")}`);
   }
-  if (unanswered) {
+  if (blockingFindings) {
     state = "broken";
-    reasons.push(`${unanswered} unanswered Codex finding${unanswered === 1 ? "" : "s"}`);
-  } else if (!isRenovate(pr) && review.state !== "complete" && state !== "broken") {
-    state = "waiting";
-    reasons.push(review.reason);
+    reasons.push(
+      `${blockingFindings} unanswered high-priority Codex finding${blockingFindings === 1 ? "" : "s"}`,
+    );
   }
   return { state, reasons };
 }
@@ -223,7 +224,7 @@ function inspect(target, repository = null) {
       head,
       checks: { state: "skipped", failed: [], pending: [] },
       review: { state: "skipped" },
-      unanswered: 0,
+      blockingFindings: 0,
       state: "waiting",
       reasons: [baseReason],
     };
@@ -239,7 +240,7 @@ function inspect(target, repository = null) {
   const reviewComments = pageArrays(`${prefix}/pulls/${number}/comments?per_page=100`);
   const checks = checkState(runs, statuses);
   const review = renovate ? { state: "skipped" } : codexReview(issueComments, head);
-  const unanswered = unansweredCodexFindings(reviewComments);
+  const blockingFindings = unansweredBlockingCodexFindings(reviewComments);
   return {
     owner,
     repo,
@@ -249,12 +250,11 @@ function inspect(target, repository = null) {
     head,
     checks,
     review,
-    unanswered,
+    blockingFindings,
     ...classify({
       pr,
       checks,
-      review,
-      unanswered,
+      blockingFindings,
       defaultBranch: repoInfo.default_branch,
     }),
   };
@@ -266,7 +266,8 @@ function compact(status) {
     state: status.state,
     head: status.head,
     checks: status.checks.state,
-    review: status.unanswered ? "unanswered" : status.review.state,
+    review: status.review.state,
+    ...(status.blockingFindings ? { blockingFindings: status.blockingFindings } : {}),
     merge:
       status.pr.mergeable === false
         ? "conflict"
