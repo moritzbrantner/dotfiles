@@ -160,8 +160,10 @@ routine implementation detail, not a consequential product decision.
 5. **Persist in useful batches.** Record clear directives and outstanding
    material Questions under their feature areas, following the owning Atlas's
    stable-ID and revision rules. Accept corrections to the synthesis; revise
-   affected statements instead of layering duplicate entries. Use a reviewable
-   PR, preferably the existing relevant Atlas PR. After durable owner-approved
+   affected statements instead of layering duplicate entries. Commit approved
+   documentation-only intent directly to the owning default branch when permitted;
+   otherwise land the existing relevant Atlas PR promptly under the documentation
+   handoff policy below. After durable owner-approved
    Decisions, run the same automatic issue reconciliation below; unapproved
    ideas and unresolved Questions must not generate speculative issues.
    Do not defer all persistence until a later session or turn. If the owner
@@ -193,17 +195,33 @@ routine implementation detail, not a consequential product decision.
    useful. Record what is proposed, accepted, deferred, unimplemented or unverified
    **without turning those into new Atlas entry types**. Human sign-off and
    executable/browser evidence are different records; neither can impersonate the other.
-5. Make approved documentation changes reviewable in the repository's normal branch/PR
-   workflow; do not auto-merge. If write access or required evidence is unavailable,
-   provide a precise proposed patch and say what was **not** persisted or verified.
-   Before asking the next question, ensure the previous answer is recorded or clearly
-   disclose the failed write. Do not silently proceed with an unrecorded premise.
+5. **Land approved intent immediately.** For owner-approved changes only to prose
+   instructions, an Atlas, a plan, or other non-executable documentation, prefer a
+   direct commit to the owning repository's default branch: no mandatory PR, hosted CI,
+   Codex review, or green pipeline. The versioned Git commit is the audit trail.
+   Before writing, inspect current source, relevant open documentation PRs, local
+   instructions, affected references, and the current default-branch head. Preserve
+   stable Atlas IDs, approval history, and any required document syntax/index rules.
+   Reuse and land an existing relevant documentation-only PR rather than duplicating
+   it; assess the actual diff, conflicts and blocking human reviews, but do not hold
+   approved intent behind unrelated failed or missing CI. Never bypass branch
+   protection or a specifically required human approval: use a short PR if direct
+   writes are disallowed, and report the blocker if GitHub refuses the merge.
+   This fast path does **not** apply to executable examples/contracts, generated
+   artifacts, runtime code, tests, build/CI configuration, security enforcement, or
+   unapproved/ambiguous decisions, even when stored in Markdown; these need their
+   applicable review and validation. Do not silently reinterpret owner intent.
+   Confirm the change is committed on the authoritative branch before reconciling
+   issues. If persistence fails, report what was not recorded and do not continue
+   from an unrecorded premise.
 
 ## Automatically reconcile approved decisions into GitHub issues
 
 The owner explicitly authorized `/steer` to **create or update necessary implementation
 issues automatically** for decisions approved in steering sessions. This is standing
-authorization for issue reconciliation, **not** permission to implement, merge or deploy.
+authorization for issue reconciliation and for landing the owner's approved
+non-executable intent documentation under the rule above, **not** permission to
+implement product behavior, merge implementation PRs or deploy.
 Do not ask "Shall I create issues?" after each session. Honor a specific instruction
 to skip issue changes or work read-only.
 
@@ -234,9 +252,11 @@ to skip issue changes or work read-only.
    issues immediately, but link the exact pending intent PR and applicable Decision
    IDs, and mark in each affected issue body that **implementation must wait until
    the owning product-intent change merges**.
-   Do not call those issues actionable yet, or misuse `needs-decision` for an
-   already-answered question. `issue-preflight` and `work-loop` must recheck the
-   merged authoritative source before implementing. Do not auto-merge intent PRs.
+   Prefer landing approved documentation first; use this pending-PR handoff only
+   when a real conflict, protection rule, or human approval blocks its immediate
+   integration. Do not call those issues actionable yet, or misuse `needs-decision`
+   for an already-answered question. `issue-preflight` and `work-loop` must recheck
+   the merged authoritative source before implementing.
 5. **Keep the queue trustworthy.** Re-running `/steer` must be idempotent: refresh
    the current GitHub state, reconcile only actual differences, and report existing
    coverage instead of duplicating issues. Do not rewrite unrelated scope, close
@@ -261,7 +281,8 @@ to skip issue changes or work read-only.
 - `work-loop`: implementation, validation, review and merge **after** direction is settled.
 
 The owner's standing authorization covers only the issue reconciliation described
-above. Starting `work-loop`, changing product behavior, merging PRs or publishing
+above, including integration of documentation-only approved intent. Starting
+`work-loop`, implementing product behavior, merging implementation PRs or publishing
 requires its own authorized execution context. Keep GitHub issues a mostly flat queue,
 one implementation worker per repository, and the Atlas the single authority for
 product intent.
