@@ -74,12 +74,13 @@ Copy or symlink these into a project when appropriate, then keep project-specifi
 Implementation work runs through one global loop over GitHub issues. Product decisions use one
 human-facing entry point backed by the existing specialist skills, without another loop:
 
-- `skills/steer` — run `/steer` in the current repository either as a **guided interview** (one consequential A/B/C question at a time) or as a **free-form discussion** (describe multiple ideas; the agent groups them by feature, reconciles them with existing Atlas entries, asks about material conflicts, and records clear owner intent). Both modes **automatically reconcile approved, durably recorded Decisions into necessary bounded GitHub issues** through `issue-preflight`, reusing `grill`, `atlas-audit`, `unblock`, and `acceptance-contract`. Tentative ideas remain Questions, not automatic implementation work; the skill never implements or merges PRs. Issues derived from unmerged Atlas PRs remain non-actionable until that source lands.
+- `skills/steer` — run `/steer` in the current repository either as a **guided interview** (one consequential A/B/C question at a time) or as a **free-form discussion** (describe multiple ideas; the agent groups them by feature, reconciles them with existing Atlas entries, asks about material conflicts, and records clear owner intent). Both modes **automatically reconcile approved, durably recorded Decisions into necessary bounded GitHub issues** through `issue-preflight`, reusing `grill`, `atlas-audit`, `unblock`, and `acceptance-contract`. Tentative ideas remain Questions, not automatic implementation work. Owner-approved, non-executable intent documentation is committed directly when permitted (or its existing documentation-only PR is merged promptly), without waiting on CI; implementation PRs remain separate. Issues derived from still-unmerged intent PRs remain non-actionable until that source lands.
 
 - `skills/work-loop` — finish existing PRs, select evidenced blockers, implement and
   validate under each repository's instructions. Its `workctl.mjs` helper guards
-  merges using CI, mergeability, and unanswered P0/P1 Codex findings. Targeted
-  Codex reviews are advisory, not mandatory per-commit merge gates. Cross-repository
+  implementation PR merges using CI, mergeability, and unanswered P0/P1 Codex findings.
+  Non-executable, owner-approved documentation is exempt from the CI/PR requirement.
+  Targeted Codex reviews are advisory, not mandatory per-commit merge gates. Cross-repository
   dependencies become issues in the owning repository.
 - `skills/unblock` — resolve blocking Questions discovered during execution; record owner answers in the Atlas when present, then link and unblock the issue.
 - `skills/grill` — refine new product/major-feature direction **before** implementation issues; ask one consequential question at a time, then record concise Decisions/Questions in the owning Atlas when present (otherwise existing docs). Proactively use concrete illustrated A/B/C alternatives for unresolved visual choices.
@@ -92,6 +93,15 @@ a feature-oriented Decision Atlas defines owner-approved product behavior and ou
 Questions; an ADR is **optional** for a non-obvious lasting architectural trade-off.
 Implementation belongs in code and tests, and GitHub issues contain the work to do.
 Do not require an ADR, design plan, or separate Markdown specification for routine changes.
+
+**Approved instruction fast path:** Owner-approved changes only to non-executable
+instructions, plans and Decisions go directly into the owning default branch when
+repository protection permits. Do not create a PR or require green CI simply to
+persist direction, including direction to repair broken CI. Check the actual diff,
+current head, repository rules, document integrity and any required human review;
+land existing documentation-only PRs instead of leaving stale intent. The ordinary
+PR and verification gates still apply to code, configuration, tests and
+machine-enforced contracts, even if stored in Markdown.
 
 **Flowcharts:** [human steering, skill routing, implementation and authority](docs/human-steering-flowcharts.md).
 
