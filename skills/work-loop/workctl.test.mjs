@@ -377,6 +377,14 @@ process.stdout.write(JSON.stringify(value));
             number: 23,
             repository_url: "https://api.github.com/repos/moritzbrantner/dotfiles",
           },
+          {
+            number: 24,
+            repository_url: "https://api.github.com/repos/moritzbrantner/dotfiles",
+          },
+          {
+            number: 25,
+            repository_url: "https://api.github.com/repos/moritzbrantner/dotfiles",
+          },
         ],
       },
     ],
@@ -419,6 +427,40 @@ process.stdout.write(JSON.stringify(value));
     "repos/moritzbrantner/dotfiles/commits/3333333ccccccccccccccccccccccccccccccccc/status?per_page=100":
       [{ statuses: [] }],
     "repos/moritzbrantner/dotfiles/pulls/23/comments?per_page=100": [[]],
+    "repos/moritzbrantner/dotfiles/pulls/24": {
+      state: "open",
+      draft: false,
+      user: { login: "owner", type: "User" },
+      head: { sha: "4444444ddddddddddddddddddddddddddddddddd" },
+      base: { ref: "main" },
+      mergeable: true,
+      mergeable_state: "clean",
+    },
+    "repos/moritzbrantner/dotfiles/commits/4444444ddddddddddddddddddddddddddddddddd/check-runs?filter=latest&per_page=100":
+      [{ check_runs: [] }],
+    "repos/moritzbrantner/dotfiles/commits/4444444ddddddddddddddddddddddddddddddddd/status?per_page=100":
+      [{ statuses: [] }],
+    "repos/moritzbrantner/dotfiles/issues/24/comments?per_page=100": [[]],
+    "repos/moritzbrantner/dotfiles/pulls/24/comments?per_page=100": [
+      [{ id: 88, in_reply_to_id: null, user: codex, body: "**[P2] Advisory finding**" }],
+    ],
+    "repos/moritzbrantner/dotfiles/pulls/25": {
+      state: "open",
+      draft: false,
+      user: { login: "owner", type: "User" },
+      head: { sha: "5555555eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" },
+      base: { ref: "main" },
+      mergeable: true,
+      mergeable_state: "clean",
+    },
+    "repos/moritzbrantner/dotfiles/commits/5555555eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee/check-runs?filter=latest&per_page=100":
+      [{ check_runs: [] }],
+    "repos/moritzbrantner/dotfiles/commits/5555555eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee/status?per_page=100":
+      [{ statuses: [] }],
+    "repos/moritzbrantner/dotfiles/issues/25/comments?per_page=100": [[]],
+    "repos/moritzbrantner/dotfiles/pulls/25/comments?per_page=100": [
+      [{ id: 89, in_reply_to_id: null, user: codex, body: "**[P1] Blocking finding**" }],
+    ],
     "repos/moritzbrantner/dotfiles/pulls/22": {
       state: "open",
       draft: false,
@@ -440,12 +482,17 @@ process.stdout.write(JSON.stringify(value));
     });
     assert.equal(result.status, 0, result.stderr);
     const output = JSON.parse(result.stdout);
-    assert.deepEqual(output.summary, { total: 3, ready: 2, broken: 0, waiting: 1 });
+    assert.deepEqual(output.summary, { total: 5, ready: 3, broken: 1, waiting: 1 });
     assert.equal(output.ready[0].pr, "moritzbrantner/dotfiles#21");
     assert.equal(
       output.ready.find((item) => item.pr === "moritzbrantner/dotfiles#23")?.review,
       "skipped",
     );
+    assert.equal(
+      output.ready.find((item) => item.pr === "moritzbrantner/dotfiles#24")?.review,
+      "absent",
+    );
+    assert.match(output.broken[0].reasons[0], /unanswered high-priority Codex finding/);
     assert.deepEqual(output.waiting[0].reasons, [
       "base agent/parent is not default branch main",
     ]);
