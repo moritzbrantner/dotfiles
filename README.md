@@ -69,13 +69,14 @@ Copy or symlink these into a project when appropriate, then keep project-specifi
 
 ## Coding-agent workflow
 
-**Design first for new products and major features:** `/steer` (guided interview or free-form idea discussion, using `grill` for consequential forks) → owning Decision Atlas / existing product docs → `issue-preflight` → implementation issues → `work-loop`. Already-specified work, routine bugs and refactors can enter the loop directly. No second scheduler or queue is needed.
+**Design first for new products and major features:** `/steer` (guided interview or free-form idea discussion, using `grill` for consequential forks) → owning Decision Atlas / existing product docs → optional `/tech-steer` for consequential engineering trade-offs → `issue-preflight` → implementation issues → `work-loop`. Already-specified work, routine bugs and refactors can enter the loop directly. No second scheduler or queue is needed.
 
 Implementation work runs through one global loop over GitHub issues. Product decisions use one
 human-facing entry point backed by the existing specialist skills, without another loop:
 
 - `skills/steer` — run `/steer` in the current repository either as a **guided interview** (one consequential A/B/C question at a time) or as a **free-form discussion** (describe multiple ideas; the agent groups them by feature, reconciles them with existing Atlas entries, asks about material conflicts, and records clear owner intent). Both modes **automatically reconcile approved, durably recorded Decisions into necessary bounded GitHub issues** through `issue-preflight`, reusing `grill`, `atlas-audit`, `unblock`, and `acceptance-contract`. Tentative ideas remain Questions, not automatic implementation work. Owner-approved, non-executable intent documentation is committed directly when permitted (or its existing documentation-only PR is merged promptly), without waiting on CI; implementation PRs remain separate. Issues derived from still-unmerged intent PRs remain non-actionable until that source lands.
 
+- `skills/tech-steer` — evaluate material engineering alternatives against settled Atlas Decisions and actual integrations, defaulting to reuse-first options. Record approved or delegated, lasting technical choices in existing architecture docs or `docs/technical-decisions.md`; routine implementation details require no new document. It does not create a second issue loop or independently authorize issue writes.
 - `skills/work-loop` — finish existing PRs, select evidenced blockers, implement and
   validate under each repository's instructions. Its `workctl.mjs` helper guards
   implementation PR merges using CI, mergeability, and unanswered P0/P1 Codex findings.
@@ -90,7 +91,7 @@ human-facing entry point backed by the existing specialist skills, without anoth
 
 **Default documentation model:** `AGENTS.md` defines repo-specific engineering boundaries;
 a feature-oriented Decision Atlas defines owner-approved product behavior and outstanding
-Questions; an ADR is **optional** for a non-obvious lasting architectural trade-off.
+Questions; an ADR or `docs/technical-decisions.md` is **optional** for a non-obvious lasting architectural trade-off, chosen through `tech-steer` when useful.
 Implementation belongs in code and tests, and GitHub issues contain the work to do.
 Do not require an ADR, design plan, or separate Markdown specification for routine changes.
 
@@ -166,7 +167,7 @@ directly when needed.
 
 To define a new product or major feature, invoke `grill` first (for example, "/grill ARPG combat architecture"). It asks one consequential question at a time, normally 3–5 per session, with concrete illustrated A/B/C alternatives for visual choices, and persists the answers in the repository-owned Atlas when present. Use scoped `daq` queries to reuse settled decisions; when the tool is unavailable, read the relevant Markdown. Only then use `issue-preflight` to turn that direction into bounded implementation issues. During work, `unblock` is the fallback for genuinely new blocking Questions. Neither skill requires a new global database, label, or queue. The work loop also invokes `acceptance-contract` for behavior and architecture changes. Independent acceptance authorship is a procedural handoff, not something a commit author or code review alone can prove.
 
-**Using these skills in ChatGPT:** With GitHub connected, ask for the [steer skill](https://github.com/moritzbrantner/dotfiles/blob/main/skills/steer/SKILL.md) in interview mode, or say "Use /steer for Scrabble; I'll talk freely and you organize the ideas into the Decision Atlas, clarify contradictions and reconcile issues." For a design-only interview you can also invoke the [grill skill](https://github.com/moritzbrantner/dotfiles/blob/main/skills/grill/SKILL.md). ChatGPT can read the current GitHub files and follow them. This repository link does not register a native ChatGPT slash command; refer to the skill explicitly when you want that workflow. For voice-only use, the short spoken option descriptions must stand on their own without images.
+**Using these skills in ChatGPT:** With GitHub connected, ask for the [steer skill](https://github.com/moritzbrantner/dotfiles/blob/main/skills/steer/SKILL.md) in interview mode, or say "Use /steer for Scrabble; I'll talk freely and you organize the ideas into the Decision Atlas, clarify contradictions and reconcile issues." For a design-only interview you can also invoke the [grill skill](https://github.com/moritzbrantner/dotfiles/blob/main/skills/grill/SKILL.md). For technical choices, ask for [tech-steer](https://github.com/moritzbrantner/dotfiles/blob/main/skills/tech-steer/SKILL.md) on a named repository or Atlas Decision; it records durable architectural rationale without implementing the choice. ChatGPT can read the current GitHub files and follow them. This repository link does not register a native ChatGPT slash command; refer to the skill explicitly when you want that workflow. For voice-only use, the short spoken option descriptions must stand on their own without images.
 
 For a manual installation **instead of the bootstrap**, link Claude Code and Codex skills:
 

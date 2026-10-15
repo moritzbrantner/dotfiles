@@ -274,6 +274,7 @@ to skip issue changes or work read-only.
 
 - `grill`: new product/major-feature design and multiple consequential choices.
 - `atlas-audit`: reconstruct historical intent or diagnose implementation drift.
+- `tech-steer`: evaluate consequential technical approaches from settled product intent, with reuse-first comparisons and optional architecture Markdown; do not shift product authority.
 - `unblock`: an active issue explicitly waiting for an owner decision.
 - `issue-preflight`: automatically reconcile approved intent into existing or necessary new bounded, observable issues.
 - `acceptance-contract`: independent acceptance handoff before behavior or architecture
