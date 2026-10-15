@@ -45,7 +45,9 @@ For each finding, briefly give:
 - **Already documented:** Do not duplicate it. If still applicable, stop; if code diverges,
   identify the implementation gap.
 - **Historically approved but missing:** Propose the shortest faithful Decision addition with
-  provenance in a reviewable PR to the *owning* repository. Do not infer rationale or approval.
+  provenance in the *owning* repository. Do not infer rationale or approval. If the owner
+  confirms the addition, persist it under `/steer`'s approved-documentation fast path;
+  otherwise keep it as a reviewable proposal rather than committing inferred intent.
 - **Unresolved or contradictory:** Propose a Question, or retrieve the existing one. Ask the
   owner **one consequential question at a time** (use `grill` for a design discussion);
   do not choose for them. An unanswered Question need not block unrelated work.
@@ -73,8 +75,10 @@ issue work, for each material gap, first update an existing issue if it already 
 `issue-preflight` to create a bounded implementation issue in the responsible repository.
 Reference the authoritative Atlas ID(s), observed mismatch, intended outcome, independent
 acceptance evidence, and any native dependencies. Split only when independently actionable.
-Do not turn unapproved hypotheses into issues, auto-merge intent changes, or start implementation
-as part of this audit. GitHub issues remain execution state; the Atlas remains intent authority.
+Do not turn unapproved hypotheses into issues or start implementation as part of
+this audit. Land explicitly approved, non-executable intent under `/steer`'s
+persistence rule, but do not auto-merge proposals still needing owner judgment.
+GitHub issues remain execution state; the Atlas remains intent authority.
 
 ## Finish
 
