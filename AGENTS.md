@@ -21,4 +21,5 @@ This repository owns personal, reusable development-environment preferences.
 - Prefer executable configuration over prose.
 - Keep defaults conservative: avoid surprising background network activity, implicit publishing, or destructive automation.
 - Validate the syntax of every edited configuration format.
+- Owner-approved non-executable instructions and product decisions should be committed directly to the owning default branch when permitted, without requiring green CI or an unnecessary PR. Preserve local protection/approval rules and keep implementation changes on their normal validated PR path (see `skills/steer/SKILL.md`).
 - When a preference belongs only to a particular language, framework, or repository type, keep it out of the global baseline unless there is a strong cross-project reason.
