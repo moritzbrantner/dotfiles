@@ -126,3 +126,117 @@ implementation/capability/product acceptance, or specify the missing-evidence
 selection path. The first, second and fifth fixtures therefore fail the policy
 review. Existing PR-first and dependency exclusions already cover part of the
 fourth fixture and must be preserved.
+
+## Retrospective regressions — 15 October 2026
+
+Independently derived from the owner's request to fix four workflow problems in
+**Work-loop retrospective — 15 October 2026**, before policy edits and without an
+implementation patch. These four fixtures supplement, rather than replace, the
+existing regression matrix and boundary checks.
+
+Baseline: dotfiles `c713c1ecbca28fb44bb93bbd2876a726efd855f9`;
+`skills/work-loop/SKILL.md` SHA-256
+`12c7e761ff4015efe89633ff1d1fa85bf1c3f2e8b97588204cdf43d69c4d8551`.
+Shared convention sourceRevision:
+`5ad0db36974c8b0e5f9812c90ee34a4f227852c3`.
+
+The observations below are actual read-only semantic policy reviews, not new
+agent executions or fabricated red product tests. Existing coverage is reported
+alongside each gap. For candidate verification, identify the operative instruction,
+required choice and prohibited claim for all four cases and the existing scenarios.
+Mechanical baseline: `node scripts/check.mjs` exits 1 before validation because
+ESLint is unavailable; this setup failure proves neither semantic failure nor
+success. No dependency/environment changes were made by the acceptance author.
+
+### R1. Keep the selected journey and respect wrap-up
+
+Fixture: a configured-match journey and its necessary prerequisites are selected;
+it remains incomplete while its PR waits on external CI. An unrelated repository
+has a ready routine dependency update. The owner then says to finish the current
+issue only and stop; the current PR receives a genuine review defect.
+
+Required choice: keep work on the selected journey and evidenced blockers instead
+of silently broadening into unrelated maintenance. Repair the current defect
+without starting another feature or acceptance preparation after wrap-up. If only
+external gates remain, record the exact issue/PR/head and pending evidence, then
+stop without polling or claiming completion. Required upstream prerequisites and
+evidenced urgent correctness remain eligible with their recorded reason and
+normal ownership/acceptance rules; focus must not categorically forbid them.
+Pending review, CI or live verification cannot be waived to meet the stop request.
+
+Baseline observation: **partial coverage**. Step 2 already prioritizes evidenced
+product blockers and permits urgent corrections; step 4 permits necessary upstream
+work. Owner instructions remain authoritative. However, global PR-first,
+continue-in-another-repository and repeat instructions do not define an active
+journey limit or explicit shutdown handoff. The retrospective records scope drift;
+no new agent execution was run to manufacture that result.
+
+### R2. Check every explicit issue obligation before expensive completion
+
+Fixture: the issue requires profile selection, a visible precreation board
+description, concurrent configurations, rejection/restart behavior and legacy
+creation. Independent API/browser checks cover everything except the board
+description and pass.
+
+Required choice: relate every explicit obligation to an existing/new acceptance
+case, independent review or stated gap, using the owning issue/spec and handoff.
+Catch the omitted visible outcome before implementation and the first expensive
+completion gate; API success cannot substitute for it. If found after production
+has begun, use the existing retrospective acceptance handoff and report chronology
+honestly. Keep separate acceptance authorship and independently reverify helper or
+fixture changes that might alter coverage, even with identical assertions. Reuse
+sufficient existing checks; no universal product schema or new queue is required.
+
+Baseline observation: **partial coverage**. Steps 3–5 and `acceptance-contract`
+already require current intent, independent integrated coverage and every handoff
+test; dropping an explicit requirement was already wrong. An obligation-to-evidence
+completeness checkpoint before the expensive full gate is not explicit. The
+recorded omission is an execution miss, not permission granted by the old policy.
+
+### R3. Capture the failing boundary before spending more green repeats
+
+Fixture: one required full two-peer recovery case fails; focused repeats pass.
+The trace does not identify the pending operation and retired/replacement
+connection that would distinguish hypotheses.
+
+Required choice: preserve the first failure with its command/source context,
+keep the required gate failed, and collect bounded relevant state at the actual
+asynchronous boundary before many further repeats. Report unavailable observations
+rather than inventing them; redact secrets. Use the evidence to establish a real
+regression before repair. Diagnostic repeats may improve reproduction, but cannot
+turn the failed gate green. Preserve ENV-004: use ordinary setup; a concrete
+missing-library failure warrants proportionate environment investigation, while
+successful normal runs need no fingerprints, runner receipts or forced containers.
+
+Baseline observation: **partial coverage**. TEST-012 already forbids retry-to-green;
+the existing diagnosis procedure supports red-capable loops and targeted state
+capture. The work loop does not require that bounded capture early, and the
+diagnosis procedure permits repeated reproduction before instrumentation. Existing
+failure classification and environment trust remain covered guardrails.
+
+### R4. Preserve evidence and distinguish commands, bookkeeping and product exit
+
+Fixture: actual native and full commands exit 0, but a wrapper exits 1 because it
+misinterprets boolean metadata. The full suite has 60 cases with 10 legitimate
+optional skips; a required real-input tier separately executes 3 cases. A later
+retry could overwrite a raw failure, and a test-then-commit report still records
+the base HEAD. Contrast an exit-0 command whose entire required tier was skipped.
+
+Required choice: retain original raw failures and record later observations
+separately; label excerpt-only recovery honestly. Report actual per-command and
+outer bookkeeping statuses separately, inspect executed/pass/fail/skip counts,
+and distinguish required coverage from legitimate optional tiers. Zero executed
+required cases are missing evidence, not a pass. Preserve the original HEAD record
+and separately bind committed files to tested bytes, or re-run invalidated checks;
+do not relabel old execution as new. No fixed filename or universal receipt schema
+is required. A homepage/legacy path or completed native build with two cameras and
+zero editable objects cannot establish the promised configured journey or editable
+scene: preserve separate implementation, capability and product acceptance claims.
+
+Baseline observation: **partial coverage**. Existing acceptance rules already
+forbid unrun-pass claims and require current-head evidence, independent contracts,
+architecture checks and conservative full-suite fallback. Steps 1/4/5 already keep
+live verification open and distinguish bounded scope from product completion.
+Explicit case-count inspection, raw-log preservation, bookkeeping separation and
+test-then-commit binding are not stated in the loop. The recorded driver mistake
+is not a product-test failure; none of these reporting fixes waives required gates.
