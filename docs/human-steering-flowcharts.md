@@ -179,9 +179,10 @@ rather than imposing a competing Atlas.
 Launch `/steer` for one concrete product question or `/steer discuss` to speak freely
 about several ideas. In discussion mode the agent synthesizes features, identifies
 existing decisions and conflicts, and asks only consequential follow-ups. The agent
-records explicit owner intent in a reviewable repository change and **automatically
-reconciles only necessary bounded GitHub issues**.
-Issues referencing unmerged product-intent PRs remain non-actionable until that source merges.
-A separately invoked `/work-loop` then handles implementation, technical verification,
-review, guarded merge and published-scenario checks. If the visible result is wrong, return to `/steer` to
+records approved non-executable intent directly in the owning default branch when
+permitted, without waiting for CI or an unnecessary PR, and **automatically
+reconciles only necessary bounded GitHub issues**. If repository protection or a
+real conflict leaves an intent PR unmerged, dependent implementation remains
+non-actionable until it lands. A separately invoked `/work-loop` handles
+implementation, technical verification, review, guarded merge and published-scenario checks. If the visible result is wrong, return to `/steer` to
 distinguish changed intent from defective implementation.
