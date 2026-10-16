@@ -1,6 +1,6 @@
 ---
 name: steer
-description: Guide owner product decisions and verification through interviews or free-form brainstorming; synthesize Decision Atlas entries and reconcile approved GitHub issues without implementation.
+description: Guide owner product decisions with breadth-first interviews or free-form discussion; synthesize Decision Atlas entries and reconcile approved GitHub issues without implementation.
 ---
 
 # Steer
@@ -51,7 +51,34 @@ finish rather than launching another interview.
    user journey, a conflicting settled decision, or an unresolved choice that can send
    implementation in the wrong direction. Use established owner priority, not an arbitrary
    scoring system or the oldest unanswered Question. Skip settled, irrelevant and routine
-   technical choices. If nothing material needs the owner, say so and stop.
+   technical choices. Compare gaps across the main product capabilities, not just
+   within the last-discussed feature. If nothing material needs the owner, say so and stop.
+
+## Balance breadth and depth
+
+Before each guided question, **including after an approved answer**, scan the current
+milestone and relevant Atlas capability branches. Compare consequential gaps in other
+user journeys before continuing the current subtopic. Do not ask the next numeric
+Question simply because it follows the last one. Prefer an under-specified major
+capability over another edge-case question about a feature whose intended experience,
+boundaries and acceptance are already clear. Honor an explicitly scoped interview and
+resolve a genuine active blocker even when deeper investigation is necessary.
+
+As a **rule of thumb**, aim for roughly **8–10 immediate Decision/Question children
+per Atlas branch**. This is not a strict schema limit, target to fill, or reason to
+weaken a product decision. If a subject needs more material design, prefer meaningful
+feature/workflow subbranches rather than an indefinitely growing flat list. Follow
+the owning Atlas parser and navigation conventions; **preserve stable IDs and history**.
+Do not renumber an existing oversized branch or rewrite previous approvals solely to
+meet this heuristic. A structural cleanup, if useful, is separate from deciding intent.
+
+After roughly **2–3 consecutive questions on one narrow feature**, reassess whether
+another product area has a more important unresolved journey. Go deeper only when
+the next owner choice materially changes the product or unblocks concrete work;
+otherwise switch areas or finish. Routine thresholds, animation, AI edge cases and
+implementation mechanics belong to the implementer, tests, or `/tech-steer` when a
+consequential technical trade-off remains. **A sufficiently defined area is done for
+steering, even if many conceivable questions remain.**
 
 ## Product feature, not engineering hygiene
 
@@ -184,8 +211,9 @@ routine implementation detail, not a consequential product decision.
    and follow the owning Atlas convention (for example, a new linked `Supersedes` Decision
    or an explicit inline strikethrough where the local format permits it). Never
    silently renumber, overwrite, or infer owner approval.
-   Keep accepted rationale, non-goals and acceptance examples concise. Without an
-   Atlas, edit existing authoritative product docs instead.
+   Keep accepted rationale, non-goals and acceptance examples concise: an Atlas leaf
+   should express the choice, not reproduce an implementation plan or exhaustive test
+   matrix. Without an Atlas, edit existing authoritative product docs instead.
 3. For a new product with no stable source of intent, use `grill` to establish the
    direction and propose one repository-owned Atlas only when appropriate. Do not
    install a universal schema or duplicate existing vision/ADR authority.
@@ -245,7 +273,9 @@ to skip issue changes or work read-only.
    bounded work with settled owner intent. One issue should describe one coherent, independently verifiable
    slice; split only meaningful separate outcomes. Do not turn every Decision into
    an issue, create speculative infrastructure, or replace product intent with a
-   smaller agent-selected MVP. Follow the owning repository's issue conventions.
+   smaller agent-selected MVP. Link Atlas Decisions rather than repeatedly copying
+   their full wording into already-large issue descriptions. Follow the owning
+   repository's issue conventions.
 4. **Respect the intent merge boundary.** An explicit owner answer can be recorded in
    a reviewable Atlas or other authoritative product-document PR before that PR
    merges; it is not yet the default-branch product source. You may reconcile GitHub
@@ -296,8 +326,8 @@ quota**: synthesize each natural batch, ask only material follow-ups, and stop
 immediately when the owner says to stop. After each recorded batch or approved
 answer, reconcile implementation issues as above before moving on; never make
 the owner remember a separate "create issues" instruction. Then find the next
-highest-impact *unresolved* human action instead of mechanically iterating
-every Question. If no decision is necessary, offer a concrete acceptance scenario
+highest-impact *unresolved* human action **across product areas**, instead of
+mechanically iterating every Question in the current branch. If no decision is necessary, offer a concrete acceptance scenario
 to inspect, or end the session.
 
 Summarize recorded Decision/Question IDs and links, issues created/updated/already
