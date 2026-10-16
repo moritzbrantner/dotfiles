@@ -11,7 +11,7 @@ GitHub issues, native `blockedBy` links, PRs and the current checkout hold execu
 
 ## Loop
 
-1. **Finish in-scope work first.** Inspect the current branch and uncommitted changes; resume identifiable work or an existing PR without overwriting user edits. Use `workctl scan` (bounded repository queries if unavailable): fix `broken`, leave `waiting`, merge `ready` after checking current head, mergeability, actual diff and required checks. A draft is unfinished; ready is a merge candidate. Never merge a stacked PR into another feature branch.
+1. **Finish in-scope work first.** Inspect the current branch and uncommitted changes; resume identifiable work or an existing PR without overwriting user edits. Use `workctl scan` (bounded repository queries if unavailable): repair `broken`, leave `waiting`, merge `ready` after checking current head, mergeability, actual diff and required checks. A draft is unfinished; ready is a merge candidate. Never merge a stacked PR into another feature branch.
 
 2. **Select an issue.** Honor the owner's repository, journey and stop scope. Otherwise choose the oldest eligible open issue by creation time, repository name and number; exclude bot/meta issues, active closing PRs, real `needs-decision` blockers and open native dependencies. Ignore product priorities, roadmap phases, perceived scarcity and unrelated Atlas Questions.
 
