@@ -1,63 +1,20 @@
 ---
 name: issue-preflight
-description: Check a proposed or selected coding issue against its repository's product vision, architectural decisions, scale and quality requirements before creation or implementation. Use to avoid accidental MVP shortcuts, right-size issues, and define independently observable acceptance.
+description: Keep GitHub issues aligned with approved product outcomes and repository ownership without routine verification ceremony.
 ---
 
 # Issue preflight
 
-Prevent an individually correct change from violating the intended product. This is a short contract check, not a separate planning queue or mandatory new documentation layer.
+Determine whether a GitHub issue is actionable and what it must deliver. This is a **scope check**, not a testing stage.
 
-**Design-first gate:** For a *new product or major feature* whose consequential direction is not yet owner-approved, invoke `grill` and record the intended outcome **before** creating implementation issues. For an existing issue with such a gap, report `needs owner decision`, retain `needs-decision` if work is blocked, and do not substitute an agent-chosen MVP. Routine fixes, clear follow-on work and behavior-preserving refactors bypass grilling.
+1. Read the issue and relevant `AGENTS.md`, installed conventions, code and approved product Decisions. Use scoped `daq` or the owning Atlas Markdown when present. Follow stable IDs and local schema. An unanswered unrelated Question, roadmap phase or historical priority is not a blocker.
+2. For user-facing features, state the **observable outcome**, entrypoint (Pages or equivalent), main user action and expected result. A backend/library prerequisite is a separate technical enabler, not proof that its consuming feature works. Headless work instead names its API, executable or produced artifact.
+3. Preserve the intended scope and authority boundaries. Split oversized work into coherent slices without silently discarding required behavior; use native GitHub dependencies for true prerequisites in other repositories.
+4. A missing test, fixture, public dataset, tool or ordinary implementation detail does not require owner input or a speculative blocker. If a consequential product decision, private input, authorization or license is indispensable, record the exact issue-specific gap and use `unblock`; new major product direction goes to `grill`. Do not invent an agent-selected MVP.
+5. **Happy-path default:** Issue readiness requires a clear outcome, **not** a tests-first handoff, browser test plan, screenshot, independent acceptance, benchmark or pre-merge deployment proof. Use existing repository-required checks. Invoke `acceptance-contract` only for a serious observed failure, a concrete high-consequence risk, or an explicit requirement/request. Distinguish expected behavior from behavior actually tested.
 
-## Decision Atlas
+## Issue reconciliation
 
-When the owning repository has a Decision Atlas, treat it as the durable authority for **what the product should be**. Follow the repository-local Atlas schema; absent one, semantic leaf entries default to **Decisions** and **Questions**, with navigation branches as structure. Do not reject locally declared entry kinds.
+`/steer` may create/update issues for **approved and durably recorded** Decisions. Search open/closed issues, PRs and existing code before writing; update matching coverage instead of duplicating it. Tentative Questions and brainstorming do not authorize implementation issues. When approved intent is still in an unmerged document PR, link it and hold implementation until that source merges; an answered Question is not `needs-decision`.
 
-- Retrieve only relevant entries with `daq find` / `daq get` / `daq questions` when available, falling back to the committed Markdown. Follow applicable current Decisions; do not treat struck-through wording or a stale index as current.
-- An unanswered Question is not automatically blocking. Ask the owner **one question at a time** only when that Question materially affects the current task.
-- **An issue is actionable by default** when its stated behavior is sufficiently specified and its actual prerequisites can be obtained or implemented. Historical Atlas priorities, roadmap stages, references to a "next" milestone, "deferred" product families, or hypothetical capacity/time limits do **not** block an issue. Only a real issue-specific missing dependency, external input/permission, or unresolved consequential owner choice can block it; record the exact gap and native GitHub dependency when appropriate.
-- A missing acceptance fixture, test or implementation is ordinarily part of the task: establish the independent contract and proceed. Do not ask the owner to choose which repository or product area deserves work; the work loop has a neutral next-unblocked-issue selector.
-- If a consequential product fork is unsettled, record/reuse a Question rather than choosing silently. On owner approval, preserve the Question and append an `Answers` Decision. For changed intent, follow the owning Atlas's history convention (`Supersedes` or inline struck replacement as permitted); retain historical IDs and explicit links.
-- Do not invent parallel Atlas kinds such as constraint, deferred decision, assumption, principle, or proposal beyond the local schema. Under the default, express those meanings in Decision/Question text or relationships.
-- Issues remain work/acceptance records, not a second product-intent database. Reference Atlas IDs instead of copying durable product intent into issue prose when a reference is sufficient.
-
-## Default for new product features: owner-verifiable vertical slices
-
-A **user-facing feature issue** must describe the smallest independently useful **end-to-end outcome**, not a backend, algorithm, API, or isolated UI layer. For projects with GitHub Pages, the default deliverable is a reachable demonstration in the real Pages application, wired to the actual implementation and meaningful data or results. A static mock, hardcoded showcase, disabled control, or passing backend test alone does not complete the feature. Right-size the feature by a coherent user experience, without silently replacing the intended product with a thinner MVP.
-
-Before marking a feature issue ready, specify:
-
-- **Try it:** the target Pages route or entrypoint (or equivalent real user interface) and exact starting actions.
-- **Observe it:** expected success behavior and representative error, empty, or state-change behavior that lets the owner judge whether the feature is right.
-- **Prove it:** independent acceptance covering the integrated journey, preferably with Playwright/real-browser tests where supported, plus screenshots or a recording when visual evidence helps. Distinguish planned evidence from executed checks.
-- **Publish it:** how the feature becomes available on the actual site. When Pages publishes only after merging, test the production-like build or preview before merge, then check and report the public route after deployment. Never imply a public deployment was verified when it was not.
-
-Backend/library prerequisites can be separately tracked **technical enablers** in their owning repositories using native issue dependencies; they do not themselves complete the consuming product feature. Pure maintenance, infrastructure, security, performance work, and headless products do not need artificial UI: verify them through a real runnable example, integration, benchmark, or output artifact appropriate to their users, and state why Pages is not the verification surface.
-
-## Check
-
-1. Read the owning repository's `AGENTS.md`, installed conventions, Decision Atlas when present, existing vision/roadmap and ADRs, the relevant code, and the proposed issue or selected issue with comments. Current owner instructions and repository Decisions take precedence over general defaults.
-2. Identify the promised outcome and user-visible or system-visible behavior. Check known architecture, authority boundaries, reuse requirements, supported environments, expected scale, and relevant performance or experience constraints.
-3. Look for **silent scope reduction**: placeholders, a lowest-effort MVP, deferred interaction/visual quality, unbounded work per entity, unnecessary recomputation, or a new competing subsystem that appears to satisfy the wording but contradicts documented intent. Do not presume every small feature needs every quality dimension.
-4. Right-size the work into one coherent PR with explicit in-scope and out-of-scope behavior. Split oversized product work along independently demonstrable user outcomes, not merely code layers; track required technical enablers separately when needed. For an existing oversized issue, preserve its intended outcome and link focused follow-ups; do not silently redefine completion.
-5. Define acceptance **independently of the implementation**: observable scenarios or user journeys, architectural invariants, relevant failure cases, and evidence through existing tests, browser recordings, performance budgets, reference oracles, or representative benchmarks as appropriate. Prefer executable architecture checks; use stable public seams plus representative end-to-end journeys. Use only owner-approved numeric targets; do not fabricate budgets or claim unrun evidence.
-6. Classify whether the actual task changes behavior or architecture. If so, arrange the `acceptance-contract` handoff: a **different agent/context** establishes or authors applicable tests before production implementation. Keep product specifications and acceptance tests in their owning repository. An implementation-authored test or a passing code review does not substitute for independent acceptance.
-
-## Decision boundary
-
-- If a consequential **product behavior or feature** choice remains unresolved, first check whether it exists as an Atlas Question. Ask **one** targeted question only when it materially affects the task (use `grill` when a short series is needed), then record the owner's answer using the owning Atlas convention. Architectural constraints and unusual technical trade-offs belong in `AGENTS.md` and occasional ADRs; code and tests own implementation details. Ordinary defects, performance regressions, or generic testing requirements should become focused issues/checks, not new product Decisions. A work-loop issue that truly cannot proceed should retain `needs-decision` until resolved.
-- If the choice is mechanical or already settled by the repository, proceed without interrupting the owner. State any harmless assumption clearly.
-- Do not generate issues from brainstorming alone. Create or modify GitHub issues only when explicitly requested, through an authorized work loop, **or through the owner's standing authorization for `/steer` to reconcile already-approved Decisions**. In `/steer`, inspect open/closed issues, existing PRs, implementation and acceptance evidence before writing; update existing coverage rather than creating duplicates. Follow the owning repository's issue format and the bounded, independently observable acceptance contract above.
-- Approved non-executable intent should normally land directly under `/steer`'s documentation fast path. **If an authoritative product-document PR is still unmerged** because of protection, conflict, or an unmet approval requirement, any reconciled issue must link that PR and explicitly say implementation is not actionable until the owning source merges. Do not conflate an approved but unmerged Decision with `needs-decision`; recheck the authoritative default-branch specification before execution. The steering handoff never starts implementation or merges an implementation PR.
-
-## Output
-
-Prepare or update a concise issue contract containing:
-
-- **Outcome:** What capability or behavior the issue delivers and why.
-- **Scope:** The bounded implementation slice and explicit exclusions.
-- **Constraints:** Links to authoritative product and architecture documents, applicable quality bars, and non-negotiable invariants.
-- **Acceptance evidence:** Independent observable behavior and proportionate correctness, browser, or performance checks. For product features, include the real Pages/demo route, owner actions and expected result, browser checks, and how published availability will be confirmed.
-- **Dependencies / decisions:** Native GitHub dependencies where applicable and any blocking owner decision.
-
-Return one status: **ready**, **needs owner decision**, or **needs decomposition**. Do not equate passing implementation-authored tests or an approving code review with satisfying an unspecified product contract.
+Return **ready**, **needs owner decision** or **needs decomposition**. State only the outcome, necessary constraints, actual blockers and any known failed evidence.
