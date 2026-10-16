@@ -29,6 +29,6 @@ Escalate from happy path only for an **observed** build/CI/runtime failure, a re
 
 - Preserve the first failure and its source revision. Reproduce the failing boundary once with the narrowest useful check; fix the cause, add a focused regression when warranted, and rerun the affected required gate. Use `acceptance-contract` for explicitly requested independent acceptance or a serious failure whose behavior needs an independent oracle.
 - Do not turn one failure into a global audit, multiple full-suite repeats, a re-review loop, new infrastructure or speculative tests. Keep a failed required check failed until repaired; never replace it with a green unrelated check.
-- If GitHub Actions cannot start due solely to a **confirmed billing/spending-limit** failure, use the existing workctl billing-exception procedure: validate feasible required jobs locally against the PR head, record missing hosted evidence and obey protection; never use `--admin`. Other CI failures do not qualify.
+- If **every** missing or failed check is confirmed to be a billing/spending-limit startup failure and no other check is pending, run feasible required jobs locally at the PR head, record evidence, and merge with `gh pr merge` only if all other gates pass. Never use `--admin` or bypass protection; ordinary CI failures do not qualify.
 
 If no issue is actionable and no genuine owner-only blocker exists, stop. Report only issue/PR outcome, known failures, unverified behavior and required owner action.
