@@ -9,6 +9,13 @@ This repository owns personal, reusable development-environment preferences.
 - Repository-local configuration overrides these personal defaults.
 - `skills/` holds the single global implementation work loop and reusable unblock, design-grilling, issue-preflight, and independent acceptance-contract procedures; repositories do not define their own agent loops, claims, queues, or status labels.
 
+## Execution selection (owner directive 2026-10-16)
+
+- Product and technology areas have **no global implementation priority or discretionary deferral**. Defined GitHub issues are eligible whenever their actual issue-specific prerequisites are satisfied. Select the next unblocked issue by a neutral deterministic rule; explicit owner task/stop scope is still honored.
+- Do not treat old product-priority Decisions, roadmap language, phrases like "after milestone X", or speculative time/worker/resource estimates as blocking dependencies. The current approved product behavior and acceptance remain authoritative; only obsolete scheduling authority is superseded.
+- The coding agent's only routine management question is whether it has the inputs, authorization and dependencies needed to implement and verify the issue. Build or repair ordinary missing prerequisites; if a genuinely unavailable human-owned input/approval/decision is required, record the **specific blocker** and move to another actionable issue. Ask the human to resolve only that blocker, not to choose the next product category.
+- Preserve existing one-worker-per-repo, PR, independent acceptance, source ownership and validation safeguards. They ensure correctness and avoid conflicting writes, not a global priority schedule. Shared details live in `skills/work-loop/SKILL.md` and `skills/unblock/SKILL.md`.
+
 ## Decision Atlas and steering organization
 
 - As a **rule of thumb**, keep roughly **8–10 direct Decisions/Questions per product-feature branch**. Reassess after **2–3 narrowly related steering questions** and prefer the next consequential product capability over repeatedly refining minor edge cases.
