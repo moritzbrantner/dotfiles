@@ -7,10 +7,12 @@ description: Resolve issues that wait on the owner's decision — find open need
 
 Resolves owner questions left by the work loop. GitHub retains issue execution state; the owning Decision Atlas (when present) retains product intent. This is a fallback for gaps discovered during implementation, not a replacement for design-first `grill` on new products or major features.
 
+Only ask for information or approval that an agent cannot derive, obtain or implement itself. If no real owner-only blocker remains, return to the next unblocked GitHub issue without another steering question.
+
 ## Steps
 
 1. **Find blocked issues:** `gh search issues --owner moritzbrantner --state open --label needs-decision --json repository,number,title,url,updatedAt`.
-2. **Order them:** issues that natively `blocking` other issues first, then the oldest. Honor an obvious legacy blocker reference in older prose if encountered, but do not create or maintain textual blocker state.
+2. **Verify, then order:** confirm that each `needs-decision` label represents an indispensable unanswered human choice on that exact issue; remove stale labels once their answer is already recorded, and do not treat category-wide priorities, roadmap stages or historical deferrals as blockers. Review genuine human blockers in neutral oldest-created order, with repository/issue as ties. Native `blockedBy` dependencies remain authoritative for actual prerequisite work; do not invent textual blocker state.
 3. **For each issue:**
    - Read the issue, comments, local instructions, and relevant code/docs. If the repository has an Atlas, retrieve applicable Decisions and Questions with `daq` when available (or read relevant source Markdown), checking that an answer isn't already recorded.
    - If current owner-approved intent already answers the issue (Atlas, an owner comment, or authoritative docs), cite it without asking again; code alone proves implementation, not owner approval.
