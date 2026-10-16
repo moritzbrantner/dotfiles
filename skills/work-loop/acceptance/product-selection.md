@@ -1,131 +1,60 @@
-# Product-selection acceptance scenarios
+# Unblocked-issue selection acceptance scenarios
 
-Authoritative scope: dotfiles issue #30. This contract was independently derived from
-that issue and default-branch revision `26a21068519ebf69cef9b549c9720dd6709dc1ab`
-before production policy edits. It reviews the instructions an agent consumes;
-it does not claim that text matching proves a future agent's execution.
+Owner execution policy, 2026-10-16: issues are implementable when their **real
+issue-specific prerequisites** exist; no product-area ordering, capacity ranking,
+"next milestone" deferral or roadmap priority question is permitted. This
+contract supersedes the earlier product-scenario-priority selection fixtures,
+which remain available in Git history for audit, not as operative test cases.
 
-Run this semantic review against `skills/work-loop/SKILL.md` and its referenced
-existing skills. For each fixture below, locate the operative instruction and
-record the required choice and prohibited claim in the PR evidence. A missing or
-contradictory instruction fails acceptance. Also run `node scripts/check.mjs` in
-full: no verified dependency map exists between policy changes and existing tests.
-The configuration and workctl tests prove mechanical integrity, not product success.
+These tests review the instructions consumed by an agent, not a claim that any
+future agent run or consumer application passed. For each case below, identify the
+operative `skills/work-loop/SKILL.md` and associated skill instructions and
+evaluate the required decision and explicitly prohibited behavior. A missing
+or contradictory instruction fails the semantic review.
 
-## Regression matrix
+For executable changes run `node scripts/check.mjs` in full, because no
+mechanically verified affected-test map exists for work-loop selection semantics.
+Keep product acceptance, mechanical PR readiness and agent policy review separate.
 
-| Fixture input | Required decision | Failure to reject |
+## Current owner-driven selection regression matrix
+
+| Fixture input | Required decision | Prohibited behavior |
 | --- | --- | --- |
-| A repository declares video into an editable multi-object Blender scene as its highest-priority acceptance scenario. Its referenced real-input E2E last failed because objects cannot be separately edited. Several geometry micro-optimization issues and the scene blocker are actionable. | Choose the evidenced scene blocker, preferring its existing issue. | Pick a convenient micro-optimization or infer the scene passes from geometry tests. |
-| The repository declares a product goal but has no executable acceptance scenario or reliable recorded outcome. Optional implementation issues are actionable. | Surface the evidence gap and prioritize independently specifying a minimal representative scenario/fixture and acceptance authorship in the owning repository before optional implementation. | Invent a success claim, score, synthetic product pass, or implementation-authored expectation. |
-| An urgent high-severity correctness regression is actionable alongside a feature acceptance blocker. | The urgent regression remains eligible and can supersede the feature blocker with a recorded reason. | Categorically defer urgent correctness or security work behind features. |
-| A ready PR passes both mechanical and independent acceptance gates. An acceptance issue is blocked by an open native dependency; its prerequisite is actionable. | Finish the ready PR first, then choose the actionable prerequisite rather than the blocked issue. Preserve repair precedence, default-branch merge rules, needs-decision exclusions and open-closing-PR exclusions. | Start a blocked issue or merge on mechanical readiness alone. |
-| Internal unit tests are green and the implementation is merged, but the independent real-input E2E still fails the intended editable-scene experience. | Report implementation state, demonstrated capability, and user-observable acceptance separately. Escalate a conflict with the intended reference experience through grill/owner decision and clarify product specs before more implementation selection. | Report a product pass from a merge, closed issue, green unit tests or fabricated fixture; weaken acceptance to fit implementation. |
+| Open music feature A is older than open speech feature B; both are specified, unblocked and have no active PR. An old Decision Atlas says "speech first" or music "deferred." No issue-specific dependency exists. | Choose A under oldest-created neutral scheduling (or obey a currently explicit owner-selected issue scope). | Treat product category, perceived time/resource scarcity or a legacy roadmap stage as a blocker; ask the owner to rank music versus speech. |
+| Two unblocked issues in different repositories have equally sufficient specifications and evidence and no active owner focus. | Deterministically choose by GitHub creation time, then repository full name/issue number only for ties. | Invent value scores, schedule by scanner result order, or solicit business priorities to resolve an ordinary queue tie. |
+| An issue has a clear behavior contract but has no acceptance fixture yet; an independent agent can author it. | Establish or independently verify the acceptance contract, then implement the issue. | Label `needs-decision`, ask the owner for priorities, or select a different category just because writing tests is work. |
+| An issue needs a public, reproducible dataset or model bundle obtainable under its permitted license; it is not yet prepared. | Treat acquisition/preparation and validation as issue work, or create/follow a concrete upstream issue with a native dependency when truly independently owned. | Call ordinary implementable preparation a human blocker or infer a release/roadmap stage dependency. |
+| An otherwise well-defined issue genuinely requires unreleased private owner-provided media, explicit licensing consent or a required consequential product decision; another unblocked issue exists. | Record the exact missing input and owner action, leave the affected issue open/blocked, work another unblocked issue, and ask the owner only about the actual missing item. | Fabricate an input, lower acceptance, add a blanket category deferral, or keep the worker idle. |
+| An unanswered Atlas Question exists about an unrelated feature or hypothetical next milestone; the selected issue is fully specified. | Implement the selected issue; consult the Atlas only for applicable product behavior and genuine conflicts. | Turn every open Question into `needs-decision` or refuse to implement until an interview is completed. |
+| A current Atlas Decision specifies the issue's required behavior, but supersedes an older product-ordering Decision. | Follow the current behavior contract, retain relevant acceptance and ignore superseded scheduling text. | Use stale priorities from roadmap/test/issue text to reorder or block the issue. |
+| A ready existing PR passes both mechanical and independent acceptance gates; an issue also awaits work. | Finish/merge the existing PR first and verify the observable result where required, then choose the next actionable issue. | Start a duplicate implementation or merge solely because `workctl` is mechanically green. |
+| An acceptance issue has a real native GitHub `blockedBy` edge to an open upstream issue; that upstream issue is doable. | Do the upstream issue in its owning repository under separate implementation/PR and acceptance, then unblock/resume the consumer. | Start the blocked issue, implement both repositories in one PR, or invent another coordination ledger. |
+| An implementation merged and unit tests passed, but live product acceptance is missing or failing. | Keep the original issue's live deployment/acceptance handoff open; verify/repair the real product before calling it done. | Report a product success from a closed PR, green unit suite, or fabricated fixture. |
+| An in-scope issue genuinely needs a human-only decision and no other issues are actionable. | Invoke `unblock` for that specific decision; stop when no human blocker remains. | Continue speculative A/B/C prioritization questions, create artificial maintenance or declare blocked issues complete. |
+| An urgent supported-product security/correctness regression is open alongside unrelated product features. | Treat it as actionable normal issue work, honor the owner's explicit scope, and preserve normal severity/security rules. | Mark it "deferred because speech/motion/music first" or waive validation. |
 
+## Upstream and owner-scope safeguards
 
-## Cross-repository tie regression
+An owner explicitly selecting a repository, issue, or stop condition constrains the
+current work session, not all subsequent sessions' product-category ordering.
+One implementation worker remains active per repository. A selected issue that
+needs work in a separate upstream repository may follow that **native** dependency,
+but it must not overwrite a checkout owned by another worker, and each repository
+uses its own implementation PR and acceptance contract. If a checkout/resource is
+truly unavailable, record the precise blocker instead of fabricating readiness.
 
-Independent review follow-up derived from issue #30 after review finding
-`4243022193`; pre-fix baseline `32c4d174afed1f92f5227573bf969a04a257a4e5`.
+Acceptance must still be independent for behavior changes, an implementation
+PR must still satisfy its required checks and review/finding rules, and a
+user-facing feature is not complete without its observable end-to-end acceptance.
+Prioritization removal is not permission to skip engineering quality or security.
 
-Fixture: repositories A and B each declare a highest-priority scenario, each has
-reliable independent failing acceptance evidence and an actionable earliest
-blocker. No owner-approved cross-repository order or evidence establishes that
-one is more consequential. Neither has an urgent override or existing PR to
-finish. Both must remain valid product-blocker candidates.
+## Historical policy
 
-Required decision: use a documented owner-approved cross-repository order or an
-explicit evidence-based reason when one exists. Otherwise make the tie visible.
-An explicit neutral scheduling rule (for example oldest actionable blocker by
-GitHub creation time, with repository/issue identity breaking exact timestamp
-ties) is acceptable only when recorded as scheduling between equally eligible
-blockers, never superior product priority. Alternatively ask the owner when the
-choice would establish a consequential product trade-off. Do not invent weights,
-semantic priority, scores, freshness or urgency from implementation convenience.
-Missing acceptance evidence must still use the existing evidence-gap path rather
-than being promoted into an artificial tie.
-
-Prohibited result: choose by scan order or agent intuition without a stated tie
-rule/reason; claim an older issue is a more important product; force an owner
-question for a routine scheduling tie after a neutral rule is declared; or apply
-neutral scheduling over established owner priorities or urgent severity evidence.
-
-Baseline observation: step 2 handles each repository's local priority and blocker
-but declares no cross-repository comparison or tie behavior, so this fixture
-fails its policy review. This scenario reviews instructions, not future execution.
-
-## Upstream dependency regression
-
-Owner decision 2026-10-14: a worker scoped to one repository may follow a
-blocking dependency into the repository that owns the missing capability.
-
-Fixture: the owner starts the loop for repository A only. A's selected blocker
-needs a capability owned by repository B, which A consumes. B's checkout is clean
-and no other worker owns it.
-
-Required decision: create the smallest issue in B, record it as a native
-`blockedBy` dependency of A's issue, implement it in B under B's own
-instructions, acceptance, review and merge rules with its own issue and PR, then
-update A's dependency after B's change merges (and publishes, if A pins a
-release) and resume A. Skip B and report when its checkout has unrelated
-uncommitted changes, or when another worker owns it and has not both stopped
-and handed off its exact branch/PR. This covers an owner that is still active
-(even if it announced a handoff) and one that is stopped or rate-limited while
-its checkout is clean between commits.
-
-Prohibited result: implement both repositories from one issue or PR, stack PRs
-across repositories, leave A's issue parked only because the owner named A, or
-run two implementations at once, or treat a clean checkout as unowned.
-
-## Authority and boundary checks
-
-### Current Atlas authority during selection
-
-Independent acceptance extension for review finding `4243229084`, baseline
-`b008d9a61cbdf61f70a828fe7f0e8b14a32a132a`.
-
-Fixture: repository A's old roadmap/test calls scenario X highest priority, but
-its current owning Atlas Decision retires X and selects Y. Repository B also
-has an evidenced actionable blocker. The loop must consult current applicable
-Atlas Decisions before comparing repositories, scenarios or blocker issues.
-Only the currently approved scenario is eligible; historical evidence for X
-does not reauthorize X or establish priority over B. Use scoped queries and
-authoritative Markdown when the query/index is unavailable or stale. Missing
-current direction/evidence uses the existing gap/owner-decision path.
-
-Required result: selection uses Y and its actual evidence before selecting an
-issue or applying the neutral cross-repository tie rule. Looking up the Atlas
-only after choosing A/X is insufficient. No retired or superseded text may
-override a current Decision.
-
-Baseline observation: step 2 selects from declared scenarios and evidence;
-explicit current Atlas retrieval occurs only in step 3, so this fixture fails.
-
-- Selection uses the repository's declared highest-priority scenario and its actual
-  last recorded outcome, with existing scenario/test references. It does not infer
-  priority or freshness when reliable evidence is unavailable.
-- Choose the earliest actionable, evidenced blocker on the failing journey;
-  prefer an existing GitHub issue and create only a focused necessary issue.
-- Product intent, fixtures, executable acceptance and architecture belong in the
-  owning repository. GitHub issues/PRs and native dependencies remain execution
-  state; only `needs-decision` is introduced as a workflow label.
-- No new planner, daemon, score database, queue, coordination state or universal
-  product specification schema is required. Deterministic workctl mechanics
-  remain separate from product semantics.
-- Independent acceptance expectations cannot be weakened by the implementation
-  agent. Unknown test impact requires the full applicable suite.
-- Dogfood selection on video-to-3d issue #77, PR #149 and issues #150/#151 using
-  their current recorded evidence. A policy review is not a claim that their
-  product acceptance passes; record observed decisions and any evidence gap.
-
-## Baseline observation
-
-At the pinned baseline, step 2 chooses unblocking work, then bugs, then recent
-progress. It does not inspect a declared product scenario/outcome, distinguish
-implementation/capability/product acceptance, or specify the missing-evidence
-selection path. The first, second and fifth fixtures therefore fail the policy
-review. Existing PR-first and dependency exclusions already cover part of the
-fourth fixture and must be preserved.
+The previous acceptance contract ranked declared highest-priority product
+scenarios and their earliest blocker before other unblocked issues. The owner
+superseded that policy on 2026-10-16. Historical owner evidence and regression
+results remain in the Git history; none authorize an implicit business-priority
+scheduler now.
 
 ## Retrospective regressions — 15 October 2026
 
