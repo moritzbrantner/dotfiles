@@ -3,7 +3,10 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const workLoop = readFileSync(new URL("./SKILL.md", import.meta.url), "utf8");
-const acceptance = readFileSync(new URL("../acceptance-contract/SKILL.md", import.meta.url), "utf8");
+const acceptance = readFileSync(
+  new URL("../acceptance-contract/SKILL.md", import.meta.url),
+  "utf8",
+);
 const preflight = readFileSync(new URL("../issue-preflight/SKILL.md", import.meta.url), "utf8");
 
 test("routine implementation starts without speculative verification", () => {
