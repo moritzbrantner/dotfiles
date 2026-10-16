@@ -71,13 +71,23 @@ Copy or symlink these into a project when appropriate, then keep project-specifi
 
 **Design first for new products and major features:** `/steer` (guided interview or free-form idea discussion, using `grill` for consequential forks) → owning Decision Atlas / existing product docs → optional `/tech-steer` for consequential engineering trade-offs → `issue-preflight` → implementation issues → `work-loop`. Already-specified work, routine bugs and refactors can enter the loop directly. No second scheduler or queue is needed.
 
-Implementation work runs through one global loop over GitHub issues. Product decisions use one
-human-facing entry point backed by the existing specialist skills, without another loop:
+Implementation work runs through one global loop over GitHub issues. **There is no
+product-category priority schedule**: finish existing PRs, then implement the next
+unblocked issue in neutral deterministic order. A previous "speech before music",
+"after milestone X" or "deferred" note is not a dependency. When a real owner-only
+input is missing, record the exact blocker, do other actionable work, and ask the
+human only to unblock that issue; otherwise do not ask for priorities. Product
+decisions still define behavior and acceptance, not work ordering. The existing
+single-worker-per-repository, validation, review and user-facing acceptance rules
+remain unchanged.
+
+Product decisions use one human-facing entry point backed by the existing
+specialist skills, without another loop:
 
 - `skills/steer` — run `/steer` in the current repository either as a **guided interview** (one consequential A/B/C question at a time) or as a **free-form discussion** (describe multiple ideas; the agent groups them by feature, reconciles them with existing Atlas entries, asks about material conflicts, and records clear owner intent). Both modes **automatically reconcile approved, durably recorded Decisions into necessary bounded GitHub issues** through `issue-preflight`, reusing `grill`, `atlas-audit`, `unblock`, and `acceptance-contract`. Tentative ideas remain Questions, not automatic implementation work. Owner-approved, non-executable intent documentation is committed directly when permitted (or its existing documentation-only PR is merged promptly), without waiting on CI; implementation PRs remain separate. Issues derived from still-unmerged intent PRs remain non-actionable until that source lands.
 
 - `skills/tech-steer` — **guided technical-design interview by default**: examine settled product Decisions and implementation evidence, then ask one consequential architecture/reuse trade-off at a time (A/B/C with a reasoned recommendation). Record owner-approved answers in an existing ADR or `docs/technical-decisions.md` and continue steering; use explicit `/tech-steer audit` only for documentation/review. Routine details require no interview or extra document. It does not create an implementation loop or independently authorize issue writes.
-- `skills/work-loop` — finish existing PRs, select evidenced blockers, implement and
+- `skills/work-loop` — finish existing PRs, select the next unblocked issue, implement and
   validate under each repository's instructions. Its `workctl.mjs` helper guards
   implementation PR merges using CI, mergeability, and unanswered P0/P1 Codex findings.
   Non-executable, owner-approved documentation is exempt from the CI/PR requirement.
@@ -112,7 +122,7 @@ GitHub issues and pull requests are the only **execution state**. Product intent
 
 ### Work-loop mental model
 
-The skill file is the operational definition; this diagram is the human-readable control flow. A current issue should produce one coherent PR. If the selected issue contains separable remainder beyond one coherent PR, create focused follow-up issues for that remainder rather than expanding the PR indefinitely. Unrelated findings are not added to the work queue.
+The skill file is the operational definition; this diagram is the human-readable control flow. Product-category priority and historical roadmap deferral have no scheduling authority. A current issue should produce one coherent PR. If the selected issue contains separable remainder beyond one coherent PR, create focused follow-up issues for that remainder rather than expanding the PR indefinitely. Unrelated findings are not added to the work queue.
 
 ```mermaid
 flowchart TD
@@ -125,14 +135,14 @@ flowchart TD
     START --> EXISTING{Existing work to finish?}:::question
     EXISTING -->|Yes| FINISH[Finish / repair existing PR]:::yes
     FINISH --> VERIFY[Validate and review]:::action
-    EXISTING -->|No| ISSUE{Evidenced blocker or urgent issue?}:::question
+    EXISTING -->|No| ISSUE{Next unblocked issue?}:::question
     ISSUE -->|Yes| INTENT[issue-preflight + scoped daq lookup]:::action
     INTENT --> GAP{Material design choice missing?}:::question
     GAP -->|No| IMPLEMENT[Implement coherent scope]:::yes
     GAP -->|Yes| BLOCK[Mark needs-decision and park issue]:::no
     BLOCK --> ISSUE
     DECISION -->|Yes| ASK[unblock / grill: one owner question]:::action
-    ISSUE -->|No| DECISION{Blocked owner question?}:::question
+    ISSUE -->|No| DECISION{Genuine human-owned blocker?}:::question
     DECISION -->|No| DONE([NOTHING ACTIONABLE]):::stop
     ASK --> RECORD[Persist in Atlas; link issue]:::action
     RECORD --> START
