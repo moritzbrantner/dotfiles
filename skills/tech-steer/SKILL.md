@@ -166,9 +166,7 @@ silently persist an unapproved agent recommendation as an approved decision.
    when issue changes were requested or are authorized by an existing work-loop/steer
    handoff. Invoking /tech-steer alone does **not** create standing authorization to
    modify issues or launch implementation. Avoid one issue per technical record.
-2. Point acceptance-contract at the architectural seams/invariants and product acceptance
-   already defined by their owning source when the work-loop implements the change.
-   Product-facing work still requires a real end-to-end acceptance surface.
+2. Identify architectural seams or invariants for a future concrete failure investigation or requested independent acceptance. Routine implementation follows the happy-path work-loop without preemptive verification.
 3. Report the chosen direction, which repository Markdown was actually committed,
    references to applicable Atlas IDs, the issue handoff (if authorized), and any
    unverified benchmark or unresolved consequential choice. A Markdown decision alone
