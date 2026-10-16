@@ -9,6 +9,8 @@ The **single human-facing entry point** for product direction in the current rep
 The owner defines and approves intent; agents investigate, propose, record and verify it.
 This is not a second work loop, issue queue, schema, or implementation worker.
 
+**Owner rule — issues, not priorities:** Do not generate, maintain or ask about product-category priorities, parallel-vs-sequential roadmap capacity, discretionary deferrals, or what the next coding agent should implement. The work loop takes the next unblocked issue using neutral scheduling; product decisions describe behavior and acceptance, not scheduling. In routine issue-unblocking mode ask the human **only for an indispensable missing choice or input** on a concrete blocked issue; otherwise record clear intent and stop without manufacturing the next Atlas question. An expressly requested exploratory product-design interview remains possible, but it must not be used to rank backlog areas.
+
 Run `/steer` from a repository, optionally adding a feature or subsystem.
 A request like "steer this repository" is equivalent when slash skills are unavailable.
 Keep the scope to that repository or one named subsystem; follow relevant cross-repository
@@ -46,23 +48,11 @@ finish rather than launching another interview.
    when tools permit. Distinguish *owner-approved intent*, *agent proposals*, *implemented
    behavior*, *test evidence*, and *human acceptance*. Code or a merged PR is not product
    approval; green CI does not establish the intended user experience.
-4. Identify the most consequential gaps in the current product or milestone, without
-   creating a durable inventory. Prioritize an evidenced mismatch or unverified essential
-   user journey, a conflicting settled decision, or an unresolved choice that can send
-   implementation in the wrong direction. Use established owner priority, not an arbitrary
-   scoring system or the oldest unanswered Question. Skip settled, irrelevant and routine
-   technical choices. Compare gaps across the main product capabilities, not just
-   within the last-discussed feature. If nothing material needs the owner, say so and stop.
+4. In normal execution, identify only **indispensable owner decisions missing from an actually selected or blocked issue**. Check whether the existing Atlas, issues, tests or code already resolves the question. A merely unanswered Atlas Question is not a blocker and product-family priority is not an admissible steering question. When the owner explicitly asks to design a new product/workflow, discuss its genuinely consequential product-behavior gaps without ordering the backlog. If nothing material needs human input, say so and stop.
 
 ## Balance breadth and depth
 
-Before each guided question, **including after an approved answer**, scan the current
-milestone and relevant Atlas capability branches. Compare consequential gaps in other
-user journeys before continuing the current subtopic. Do not ask the next numeric
-Question simply because it follows the last one. Prefer an under-specified major
-capability over another edge-case question about a feature whose intended experience,
-boundaries and acceptance are already clear. Honor an explicitly scoped interview and
-resolve a genuine active blocker even when deeper investigation is necessary.
+During an **explicitly requested exploratory guided interview**, compare unresolved consequential product-behavior gaps without tunneling into one minor edge case. For routine work-loop questions, inspect the **specific issue's actual blocker** instead and stop as soon as that blocker is answered. Do not ask the next numbered Atlas Question simply because one exists. The absence of further questions is success, not a reason to switch to speculative prioritization.
 
 As a **rule of thumb**, aim for roughly **8–10 immediate Decision/Question children
 per Atlas branch**. This is not a strict schema limit, target to fill, or reason to
