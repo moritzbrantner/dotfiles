@@ -111,8 +111,8 @@ flowchart TD
     START(["work-loop: next natural scan"]) --> EXIST{"Open PR or live verification handoff?"}
     EXIST -->|Yes| RESUME["Finish or repair PR; verify deployment only when promised"]
     RESUME --> START
-    EXIST -->|No| PICK{"Actionable evidenced issue?"}
-    PICK -->|No| BLOCK{"An owner question blocks work?"}
+    EXIST -->|No| PICK{"Next unblocked issue?"}
+    PICK -->|No| BLOCK{"Genuine human-only blocker?"}
     BLOCK -->|Yes| UNBLOCK["unblock: ask and persist answer"]
     UNBLOCK --> START
     BLOCK -->|No| END(["No actionable work: stop"])
@@ -139,6 +139,8 @@ flowchart TD
     EVIDENCE --> START
     REOPEN --> START
 ```
+
+The neutral next-issue selector obeys explicit owner session scope, otherwise oldest-created open **unblocked** issue. Product-category priorities and historical milestone deferrals are not dependencies. An agent handles missing code, tests and ordinary tooling itself; only a specific unavailable external/human input or actual native dependency parks that issue while other actionable issues continue.
 
 `workctl` checks mechanical PR readiness; it cannot approve product intent. Any required owning product-intent change must already be merged before its issue
 becomes actionable. Independent
