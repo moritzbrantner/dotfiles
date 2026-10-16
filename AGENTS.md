@@ -13,8 +13,8 @@ This repository owns personal, reusable development-environment preferences.
 
 - Product and technology areas have **no global implementation priority or discretionary deferral**. Defined GitHub issues are eligible whenever their actual issue-specific prerequisites are satisfied. Select the next unblocked issue by a neutral deterministic rule; explicit owner task/stop scope is still honored.
 - Do not treat old product-priority Decisions, roadmap language, phrases like "after milestone X", or speculative time/worker/resource estimates as blocking dependencies. The current approved product behavior and acceptance remain authoritative; only obsolete scheduling authority is superseded.
-- The coding agent's only routine management question is whether it has the inputs, authorization and dependencies needed to implement and verify the issue. Build or repair ordinary missing prerequisites; if a genuinely unavailable human-owned input/approval/decision is required, record the **specific blocker** and move to another actionable issue. Ask the human to resolve only that blocker, not to choose the next product category.
-- Preserve existing one-worker-per-repo, PR, independent acceptance, source ownership and validation safeguards. They ensure correctness and avoid conflicting writes, not a global priority schedule. Shared details live in `skills/work-loop/SKILL.md` and `skills/unblock/SKILL.md`.
+- The coding agent's only routine management question is whether it has the inputs, authorization and dependencies needed to implement the issue. Obtain ordinary prerequisites; record an indispensable human-only blocker and continue elsewhere.
+- **Happy path (owner directive 2026-10-17):** Implement routine issues without proactive acceptance authoring, extra test runs, browser/deployment checks or AI reviews. Existing repository-required CI, protection and ownership rules remain. Investigate observed failures, concrete serious security/data-integrity risks and explicit owner requests. An unrun check is **unverified**, not passed. See `skills/work-loop/SKILL.md` and `skills/acceptance-contract/SKILL.md`.
 
 ## Decision Atlas and steering organization
 

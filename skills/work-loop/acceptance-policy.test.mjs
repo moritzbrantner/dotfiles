@@ -7,35 +7,37 @@ const acceptance = readFileSync(
   new URL("../acceptance-contract/SKILL.md", import.meta.url),
   "utf8",
 );
+const preflight = readFileSync(new URL("../issue-preflight/SKILL.md", import.meta.url), "utf8");
 
-// Guard the two independently consumed instruction entry points against policy drift.
-// These are instruction-contract tests, not a simulated agent or a claim of CI acceptance.
-test("expected-red acceptance commits hand off on the issue without a synthetic PR", () => {
-  assert.match(workLoop, /tests-first commits on the \*\*same task branch\*\*/);
-  assert.match(workLoop, /baseline result, source revision and independent context on the owning issue/);
-  assert.match(workLoop, /Do not open an acceptance-only draft PR/);
-  assert.match(workLoop, /meaningful implementation commit exists/);
-  assert.match(acceptance, /commit them \*\*before\*\* implementation commits on the same task branch/);
-  assert.match(acceptance, /baseline result \(including expected red\)/);
-  assert.match(acceptance, /Do not create an acceptance-only draft PR/);
+test("routine implementation starts without speculative verification", () => {
+  assert.match(workLoop, /Happy path is the default/);
+  assert.match(workLoop, /Do not preemptively write acceptance tests/);
+  assert.match(acceptance, /Not part of the normal happy path/);
+  assert.match(preflight, /not a tests-first handoff/);
 });
 
-test("sufficient existing tests require an independent handoff, not a dummy commit", () => {
-  assert.match(workLoop, /If existing tests already suffice, record their paths/);
-  assert.match(workLoop, /no empty or artificial test commit is required/);
-  assert.match(acceptance, /When existing tests already suffice, record their pinned paths/);
-  assert.match(acceptance, /no empty or synthetic test commit/);
+test("existing required merge gates remain binding", () => {
+  assert.match(workLoop, /mandatory repository\/CI checks and branch protection still apply/);
+  assert.match(workLoop, /repair .broken., leave .waiting./);
+  assert.match(acceptance, /required failed check remains blocking until it passes/);
 });
 
-test("legacy acceptance-only drafts resume on the same branch", () => {
-  assert.match(workLoop, /Resume existing acceptance-only draft PRs on their original branches/);
-  assert.match(acceptance, /Resume a pre-existing acceptance-only draft PR on the same branch/);
-  assert.match(workLoop, /If a repository-local rule requires an earlier PR, follow that rule/);
+test("concrete failures trigger bounded investigation, not a global audit", () => {
+  assert.match(workLoop, /observed.*build\/CI\/runtime failure/);
+  assert.match(workLoop, /Preserve the first failure/);
+  assert.match(workLoop, /Do not turn one failure into a global audit/);
+  assert.match(acceptance, /specific observable failure/);
 });
 
-test("postimplementation failures still block merge, even after an expected-red baseline", () => {
-  assert.match(acceptance, /red acceptance baseline does not waive any failure after implementation/);
-  assert.match(acceptance, /every required check and current-head acceptance must pass before merge/);
-  assert.match(workLoop, /repair `broken`, leave `waiting`/);
-  assert.match(workLoop, /Gate merge on new or independently verified existing acceptance contracts/);
+test("outcomes are not falsely claimed verified", () => {
+  assert.match(workLoop, /unverified.*not tested/);
+  assert.match(workLoop, /A merged PR proves implementation, not an independently tested/);
+  assert.match(preflight, /Distinguish expected behavior from behavior actually tested/);
+});
+
+test("scope, decisions and dependencies still govern execution", () => {
+  assert.match(workLoop, /oldest eligible open issue/);
+  assert.match(workLoop, /one active implementation writer per repository/i);
+  assert.match(workLoop, /needs-decision/);
+  assert.match(preflight, /reconcile.*approved.*Decisions/i);
 });

@@ -1,190 +1,30 @@
-# Human steering and coding loops
+# Steering and development flow
 
-These diagrams explain the **human-facing process**, the reusable skills, the implementation
-loop, and the sources of authority. They do not introduce a new orchestrator or policy.
-The procedures in `skills/*/SKILL.md` and the owning repository's local instructions are
-operationally authoritative. For the existing detailed work-loop flowchart, see the
-[dotfiles README](../README.md#work-loop-mental-model).
+The owning repository's `AGENTS.md`, product Decisions and installed conventions govern behavior. See `skills/*/SKILL.md` for procedures.
 
-## 1. Your loop — use `/steer`
+## Product decisions
 
-Start in the repository you want to shape. Either answer a guided interview or speak
-freely while the agent groups, reconciles and records clear ideas. Unsettled or
-contradictory choices become **one meaningful human question at a time**. A green CI
-check is not your product approval.
+`/steer` handles guided questions and free-form ideas. Record unambiguous owner intent in the owning Atlas or existing product docs. Reconcile only necessary, independently useful issues via `issue-preflight`. Undecided proposals remain Questions; an unmerged authoritative intent PR blocks implementation of its dependent issues.
 
-```mermaid
-flowchart TD
-    S(["You invoke /steer"]) --> READ["Read repository rules, Atlas and product evidence"]
-    READ --> MODE{"How is the owner steering?"}
-    MODE -->|Guided interview| ACTION{"What needs your judgment?"}
-    MODE -->|Free-form ideas| COLLECT["Collect the owner's full ideas"]
-    COLLECT --> SYNTH["Group by feature, map Atlas IDs, check conflicts and existing work"]
-    SYNTH -->|Clear owner directives| PERSIST
-    SYNTH -->|Ambiguous or contradictory| ACTION
-    SYNTH -->|Nonblocking unknowns| QUESTION
-    ACTION -->|Define, decide, approve or revise| ASK["Ask one concrete question"]
-    ASK --> ANSWER["You answer, adjust or defer"]
-    ANSWER --> RESOLVED{"Intent settled?"}
-    RESOLVED -->|Yes| PERSIST["Record owner-approved intent in owning Atlas or docs"]
-    RESOLVED -->|No| QUESTION["Keep the Question unresolved"]
-    ACTION -->|Verify| DEMO["Try real product with acceptance evidence"]
-    DEMO --> MATCH{"Does it match your intent?"}
-    MATCH -->|Yes| FEEDBACK["Record owner feedback, separately from CI"]
-    MATCH -->|No| CAUSE{"Product definition or implementation?"}
-    CAUSE -->|Definition| ASK
-    CAUSE -->|Implementation| PROPOSE["Propose issue or acceptance correction"]
-    PERSIST --> PREF["issue-preflight: reconcile approved decisions"]
-    PREF --> NEEDED{"Necessary uncovered work?"}
-    NEEDED -->|No| MORE
-    NEEDED -->|Yes| MERGED{"Required intent change authoritative?"}
-    MERGED -->|Yes or not applicable| ISSUE["Update existing or create bounded issue"]
-    MERGED -->|Not yet| PENDING["Reconcile issue, but block implementation until Atlas PR merges"]
-    ISSUE --> MORE{"Another consequential gap?"}
-    PENDING --> MORE
-    QUESTION --> MORE
-    FEEDBACK --> MORE
-    PROPOSE --> MORE
-    MORE -->|Yes| READ
-    MORE -->|No| DONE(["Finish session"])
-    ACTION -->|Nothing material| DONE
-```
+`/tech-steer` records consequential technical choices. `/unblock` asks only for missing decisions on actual blocked issues. `/work-loop` is a separate implementation task.
 
-`Define`, `decide`, `approve`, and `revise` change **intent** when you answer. `Verify`
-checks the actual product against that intent. An implementation mismatch proposes a
-correction; it does **not** automatically change your Decisions. Recording an approved
-answer also authorizes **automatic issue reconciliation**. It does not authorize
-implementation, merging or deploying.
+## Happy-path work loop
 
-## 2. Which skills are used?
-
-`/steer` is a **single human entry point**, not another worker. Specialized skills retain
-their original responsibilities; they can still be invoked directly.
+`/work-loop` selects the oldest eligible issue within the owner's scope and implements directly. One active implementation writer per repository. No proactive acceptance agent, tests-first commit, exploratory test suite, browser audit, AI review or post-merge deployment inspection. Existing required gates still apply.
 
 ```mermaid
 flowchart TD
-    HUMAN["Human starts /steer"] --> ROUTE{"Which specialist is useful?"}
-    ROUTE -->|New or unclear direction| GRILL["grill: shape product intent"]
-    ROUTE -->|Historical decisions or drift| AUDIT["atlas-audit: reconstruct evidence"]
-    ROUTE -->|Issue awaits owner| UNBLOCK["unblock: resolve blocker"]
-    ROUTE -->|Check product| VERIFY["Review real demo and evidence"]
-    GRILL --> APPROVAL{"Explicitly owner-approved now or previously?"}
-    AUDIT --> APPROVAL
-    UNBLOCK --> APPROVAL
-    APPROVAL -->|Yes| ATLAS["Owning Decision Atlas or existing product docs"]
-    APPROVAL -->|Unresolved| QUESTION["Keep Question open; never invent approval"]
-    QUESTION --> HUMAN
-    VERIFY --> HUMAN
-    ATLAS --> PREF["issue-preflight: auto reconcile approved intent"]
-    PREF --> NEED{"Necessary issue changes?"}
-    NEED -->|No| END(["Finish steering"])
-    NEED -->|Yes| ISSUES["Update or create bounded GitHub issues"]
-    ISSUES --> END
-    END -.->|Separately invoked later| LOOP["/work-loop: implementation"]
-    LOOP -->|New blocking Question| UNBLOCK
-    LOOP --> QUALIFY{"Behavior or architecture change?"}
-    QUALIFY -->|Yes| CONTRACT["acceptance-contract: independent checks before code"]
-    QUALIFY -->|No, preserved| BUILD["One implementation worker per repository"]
-    CONTRACT --> BUILD
-    BUILD --> VERIFY
+    START[Resume in-scope PR or select next unblocked issue] --> SCOPE{Missing owner decision or real dependency?}
+    SCOPE -->|Yes| BLOCK[Record blocker; work another eligible issue]
+    SCOPE -->|No| CODE[Implement coherent slice]
+    CODE --> GATE{Existing required gates pass?}
+    GATE -->|Yes| MERGE[Merge; report unverified behavior as unverified]
+    GATE -->|Failure| FIX[Preserve failure; diagnose narrowly and repair]
+    FIX --> GATE
+    MERGE --> START
+    BLOCK --> START
 ```
 
-`atlas-audit` is investigative; implementation history or an agent proposal is not owner
-approval, even when historically evidenced. `unblock` is the fallback for questions discovered while working. New major
-features go through `grill` **before** implementation. `issue-preflight` automatically
-reconciles approved steering Decisions, but cannot start `work-loop` or make speculative
-issues. An issue linked to an unmerged Atlas PR is not yet actionable.
+Escalate verification only for a concrete failure, serious security/data-integrity risk, repository-required gate or owner request. `acceptance-contract` supplies independent evidence when requested or needed for a serious defect; it is not a standard preimplementation stage.
 
-## 3. The agent implementation loop
-
-Once there is approved direction and an authorized actionable issue, implementation is
-mechanical wherever possible. Exactly **one active implementation worker per repository**;
-independent acceptance authorship happens **before** changing behavior/architecture, not
-as a simultaneous competing writer.
-
-The worker uses the repository's ordinary checkout and a task branch by default.
-Worktrees are an exception for a concrete isolation need or protecting unrelated
-checkout changes; independent acceptance still hands off before production edits.
-
-```mermaid
-flowchart TD
-    START(["work-loop: next natural scan"]) --> EXIST{"Open PR or live verification handoff?"}
-    EXIST -->|Yes| RESUME["Finish or repair PR; verify deployment only when promised"]
-    RESUME --> START
-    EXIST -->|No| PICK{"Next unblocked issue?"}
-    PICK -->|No| BLOCK{"Genuine human-only blocker?"}
-    BLOCK -->|Yes| UNBLOCK["unblock: ask and persist answer"]
-    UNBLOCK --> START
-    BLOCK -->|No| END(["No actionable work: stop"])
-    PICK -->|Yes| PREF["issue-preflight: Atlas and scoped daq"]
-    PREF --> SOURCE{"Required intent change still unmerged?"}
-    SOURCE -->|Yes| HOLD["Keep affected issue pending; do not implement"]
-    HOLD --> START
-    SOURCE -->|No or not applicable| Q{"Consequential choice unresolved?"}
-    Q -->|Yes| PARK["Keep needs-decision; work elsewhere"]
-    PARK --> START
-    Q -->|No| CHANGE{"Behavior or architecture change?"}
-    CHANGE -->|Yes| CONTRACT["acceptance-contract: independent tests first"]
-    CHANGE -->|No, truly preserved| IMPLEMENT["One worker implements a bounded slice"]
-    CONTRACT --> IMPLEMENT
-    IMPLEMENT --> CHECK["Affected tests, browser preview, CI; targeted review if warranted"]
-    CHECK --> PASS{"All gates pass?"}
-    PASS -->|No| IMPLEMENT
-    PASS -->|Yes| MERGE["Guarded merge"]
-    MERGE --> LIVE_NEEDED{"Post-merge publication promised?"}
-    LIVE_NEEDED -->|Yes| LIVE{"Published scenario verified?"}
-    LIVE_NEEDED -->|No| EVIDENCE["Record applicable acceptance evidence"]
-    LIVE -->|Yes| EVIDENCE
-    LIVE -->|No or pending| REOPEN["Keep or reopen original issue with evidence gap"]
-    EVIDENCE --> START
-    REOPEN --> START
-```
-
-The neutral next-issue selector obeys explicit owner session scope, otherwise oldest-created open **unblocked** issue. Product-category priorities and historical milestone deferrals are not dependencies. An agent handles missing code, tests and ordinary tooling itself; only a specific unavailable external/human input or actual native dependency parks that issue while other actionable issues continue.
-
-`workctl` checks mechanical PR readiness; it cannot approve product intent. Any required owning product-intent change must already be merged before its issue
-becomes actionable. Independent
-acceptance authorship is required for behavior or architecture changes, not a genuinely
-behavior-preserving refactor. Post-merge live verification applies only when the issue
-contract promises a published scenario. A merged feature
-or green unit suite is not evidence that the published end-to-end scenario works. If the
-live check is missing, stale, failing or still publishing, preserve the issue and evidence
-for the next natural scan; do not poll or declare success prematurely. If a slice is
-oversized, create or reuse focused successors rather than hiding unfinished scope.
-
-## 4. Where knowledge and evidence live
-
-```mermaid
-flowchart LR
-    OWNER["Human product authority"] -->|Approves intent| ATLAS["Owning Atlas: hierarchical Decisions and Questions"]
-    ATLAS -->|Stable IDs| ISSUES["GitHub issues: flat work queue"]
-    ATLAS -->|Query derived index| DAQ["daq: retrieval, not authority"]
-    DAQ --> AGENT["steer, issue-preflight, work-loop"]
-    AGENT -->|Issue changes separately authorized| ISSUES
-    ATLAS -->|Specifies outcomes| CONTRACT["Independent acceptance contract"]
-    ISSUES --> PR["PRs and code: execution state"]
-    CONTRACT -->|Defined before behavior changes| PR
-    PR --> PROOF["Tests, browser evidence and live product"]
-    PROOF -->|Human observes result| OWNER
-```
-
-The **Decision Atlas is a hierarchy** for durable owner-controlled intent; its default
-semantic leaves are only Decisions and Questions. **GitHub issues form a mostly flat
-execution queue** and PRs track implementation. `daq` is a derived way to query Atlas
-source, not another database of truth. Existing vision, roadmap and ADR documentation
-can add detail without overriding current Decisions. Tests and demos are evidence, not
-owner approval. Where no Atlas exists, use the existing authoritative product documents
-rather than imposing a competing Atlas.
-
-## What you actually do
-
-Launch `/steer` for one concrete product question or `/steer discuss` to speak freely
-about several ideas. In discussion mode the agent synthesizes features, identifies
-existing decisions and conflicts, and asks only consequential follow-ups. The agent
-records approved non-executable intent directly in the owning default branch when
-permitted, without waiting for CI or an unnecessary PR, and **automatically
-reconciles only necessary bounded GitHub issues**. If repository protection or a
-real conflict leaves an intent PR unmerged, dependent implementation remains
-non-actionable until it lands. A separately invoked `/work-loop` handles
-implementation, technical verification, review, guarded merge and published-scenario checks. If the visible result is wrong, return to `/steer` to
-distinguish changed intent from defective implementation.
+Product intent lives in the Atlas; issue/PR/checkout state records work. A merge proves the change landed, not that an untested demo worked. If an actual deployment or user regression is reported, reopen the same issue and repair it. Do not reopen issues solely because optional verification was not performed.
