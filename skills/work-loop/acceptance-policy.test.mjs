@@ -50,7 +50,8 @@ test("owner forks are asked asynchronously with one shared threshold", () => {
   assert.match(workLoop, /agent default/);
   assert.match(preflight, /Fork coverage \(creation gate\)/);
   assert.match(steer, /owner fork/);
-  assert.match(unblock, /\/unblock brief/);
-  assert.match(formats, /ANSWERS <date>/);
+  assert.match(unblock, /### Owner answers/);
+  assert.match(workLoop, /Owner digest:/);
+  assert.match(formats, /label:needs-decision user:moritzbrantner/);
   assert.match(formats, /never mark a "maybe" as DECIDE/i);
 });

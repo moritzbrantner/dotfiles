@@ -28,9 +28,9 @@ Only ask for information or approval that an agent cannot derive, obtain or impl
 
 Ask one question at a time; never send a questionnaire.
 
-## Voice sessions: brief and answers
+## Answers posted on GitHub
 
-Formats are in `docs/owner-questions.md`.
+Formats are in `docs/owner-questions.md`. The owner (or ChatGPT on the owner's behalf) answers by posting a `### Owner answers` comment on the blocked issue; nothing is pasted or uploaded.
 
-- **`/unblock brief`:** collect open owner question blocks from `needs-decision` issues (oldest first, grouped by repository) into one plain-text brief for a ChatGPT/voice session. Ask nothing and write nothing.
-- **Pasted `ANSWERS` block:** for each `<repo>#<n>.Q<k>` line, record the answer exactly as in step 4 (Atlas when it is a product or architecture decision, issue comment with the verbatim owner words, remove `needs-decision` once every blocking question on that issue is answered). Interpret `other` answers from the verbatim words; if one is genuinely ambiguous, keep that issue blocked and add a follow-up question to its block rather than guessing. `skip` leaves the question open.
+- **Pickup:** a `needs-decision` issue whose latest `### Owner answers` comment is newer than its latest `### Owner questions` comment is answered. Record each answer exactly as in step 4 (Atlas for product/architecture decisions, issue comment with Atlas IDs), then remove `needs-decision` once nothing blocking remains. Interpret `other` answers from the verbatim words; if one is genuinely ambiguous, post a follow-up `### Owner questions` comment instead of guessing. `skip` leaves that question open.
+- **Pasted answers:** text pasted in a session (fallback when ChatGPT cannot write to GitHub) is handled the same way.
