@@ -4,9 +4,11 @@ The owner works in two places: **voice/ChatGPT sessions** (ideas, decisions, ans
 
 ## When a fork goes to the owner
 
-An **owner fork** is a choice that is not already settled by an Atlas Decision, a technical decision record, `AGENTS.md` or existing code **and** is one of:
+Follow the [owner decision authority approved in process steering Q1 (B)](https://github.com/moritzbrantner/dotfiles/blob/ea3ae3c06b9588efecf0c83b5f4cc12b6a8d3b1e/AGENTS.md#owner-decision-authority).
 
-- user-visible behavior, workflow or scope;
+An **owner fork** is a choice that is not already settled by applicable repository-local instructions, installed `coding-agent-conventions`, an Atlas Decision or a technical decision record **and** is one of:
+
+- user-visible behavior, workflow, appearance or scope, even when the choice is reversible;
 - hard-to-reverse architecture (runtime, storage/save format, protocol, public API shape, a new dependency family);
 - cross-repository ownership (which repository owns a capability);
 - money, licensing, privacy or private inputs.
