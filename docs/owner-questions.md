@@ -15,6 +15,12 @@ An **owner fork** is a choice that is not already settled by applicable reposito
 
 Everything else is an **agent default**: decide it following the owner principles in `coding-agent-conventions/principles/README.md` (cleanest design, no compatibility shims, proportionate verification, idempotent setup, no temporary substitutes) and list it in the PR. A typical issue has 0–5 owner forks. Never pad to a count.
 
+## Broad direction and issue investigation
+
+Follow the [broad steering and selected-issue investigation decision approved in process steering Q2 (B)](https://github.com/moritzbrantner/dotfiles/blob/4d124cfc5109c1d6dc82a0b93071c1d3a7d5f43a/README.md#broad-steering-and-issue-investigation).
+
+A steering session can approve a capability and intended outcome before all details are known. Before coding the selected issue, the implementing worker investigates the relevant workflow, code, conventions, approved decisions and inputs, then settles the remaining blocking owner questions. Reuse the approved direction; unspecified user-facing behavior remains open. Broad and detailed steering are available in any session.
+
 ## Ask mode: live or github
 
 The owner chooses per session how owner forks are asked:
