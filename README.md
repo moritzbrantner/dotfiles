@@ -116,6 +116,15 @@ GitHub issues and pull requests are the only **execution state**. Product intent
 
 **Feature delivery rule:** User-facing issues must deliver a real integrated Pages/user journey (or equivalent), not only an isolated backend. Browser acceptance and published-route audits are performed when required or when concrete failures arise; otherwise state that they were not verified.
 
+### Broad steering and issue investigation
+
+Owner decision, process steering Q2 (2026-10-17): **B — investigate the selected issue before changing code, alongside broader product steering.**
+
+- Broad steering, including voice sessions while driving, can approve a capability and intended outcome without settling every detail: for example, "add export to the list." Preserve that direction and reconcile necessary GitHub issues through the existing steering rules.
+- Before coding the selected issue, the implementing worker examines the relevant workflow, code, conventions, approved decisions and available inputs, then prepares the remaining owner questions it can identify. Settle blocking questions before implementation; later discoveries can still require questions.
+- Apply [Q1's owner decision authority](AGENTS.md#owner-decision-authority). Reuse approved direction without asking again; capability approval does not settle unspecified user-facing behavior.
+- Use the same worker and existing GitHub records. No separate preparation document, question quota or exhaustive prediction of future forks is required. Broad and detailed steering remain available in any session.
+
 ### Work-loop mental model
 
 The skill file is the operational definition; this diagram is the human-readable control flow. Product-category priority and historical roadmap deferral have no scheduling authority. A current issue should produce one coherent PR. If the selected issue contains separable remainder beyond one coherent PR, create focused follow-up issues for that remainder rather than expanding the PR indefinitely. Unrelated findings are not added to the work queue.
