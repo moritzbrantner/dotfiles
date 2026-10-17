@@ -16,6 +16,15 @@ This repository owns personal, reusable development-environment preferences.
 - The coding agent's only routine management question is whether it has the inputs, authorization and dependencies needed to implement the issue. Obtain ordinary prerequisites; record an indispensable human-only blocker and continue elsewhere.
 - **Happy path (owner directive 2026-10-17):** Implement routine issues without proactive acceptance authoring, extra test runs, browser/deployment checks or AI reviews. Existing repository-required CI, protection and ownership rules remain. Investigate observed failures, concrete serious security/data-integrity risks and explicit owner requests. An unrun check is **unverified**, not passed. See `skills/work-loop/SKILL.md` and `skills/acceptance-contract/SKILL.md`.
 
+## Owner decision authority
+
+Owner decision, process steering Q1 (2026-10-17): **B — reserve unresolved user-facing behavior for the owner.**
+
+- Apply repository-local instructions, the repository's installed coding-agent-conventions, and approved product and technical decisions first. Use settled preferences without asking again.
+- If user-facing behavior, workflow or appearance still has multiple plausible answers, ask the owner before choosing, even when the choice is reversible.
+- Agents choose technical implementation details and straightforward repairs that preserve approved behavior. A recommendation or existing code alone does not approve new product intent.
+- Preserve explicit owner decisions. The owner accepts the extra confirmations and expects recorded taste and preferences to be applied consistently.
+
 ## Decision Atlas and steering organization
 
 - As a **rule of thumb**, keep roughly **8–10 direct Decisions/Questions per product-feature branch**. Reassess after **2–3 narrowly related steering questions** and prefer the next consequential product capability over repeatedly refining minor edge cases.
