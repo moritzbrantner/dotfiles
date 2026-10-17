@@ -28,6 +28,8 @@ Only ask for information or approval that an agent cannot derive, obtain or impl
 
 Ask one question at a time; never send a questionnaire.
 
+Under `ask:live`, asking in the session is the default; under `ask:github`, do not ask, only pick up answers. Either way, record live answers as a `### Owner answers` comment marked `Source: live session`.
+
 ## Answers posted on GitHub
 
 Formats are in `docs/owner-questions.md`. The owner (or ChatGPT on the owner's behalf) answers by posting a `### Owner answers` comment on the blocked issue; nothing is pasted or uploaded.

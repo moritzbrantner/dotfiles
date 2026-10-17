@@ -46,7 +46,9 @@ test("owner forks are asked asynchronously with one shared threshold", () => {
   const steer = readFileSync(new URL("../steer/SKILL.md", import.meta.url), "utf8");
   const unblock = readFileSync(new URL("../unblock/SKILL.md", import.meta.url), "utf8");
   const formats = readFileSync(new URL("../../docs/owner-questions.md", import.meta.url), "utf8");
-  assert.match(workLoop, /never waiting or relaying questions live/);
+  assert.match(workLoop, /ask:github.*default/);
+  assert.match(workLoop, /ask:live/);
+  assert.match(formats, /Source: live session/);
   assert.match(workLoop, /agent default/);
   assert.match(preflight, /Fork coverage \(creation gate\)/);
   assert.match(steer, /owner fork/);

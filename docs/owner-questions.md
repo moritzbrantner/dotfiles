@@ -13,6 +13,15 @@ An **owner fork** is a choice that is not already settled by an Atlas Decision, 
 
 Everything else is an **agent default**: decide it following the owner principles in `coding-agent-conventions/principles/README.md` (cleanest design, no compatibility shims, proportionate verification, idempotent setup, no temporary substitutes) and list it in the PR. A typical issue has 0–5 owner forks. Never pad to a count.
 
+## Ask mode: live or github
+
+The owner chooses per session how owner forks are asked:
+
+- **`ask:github`** (default; unattended runs, nights): post `### Owner questions` on the issue, add `needs-decision`, continue with other eligible work. Nothing ever waits.
+- **`ask:live`** (owner is at the session): ask owner forks immediately in the session, one at a time with the question tool, and continue the same issue once answered. A delegated worker that cannot ask directly stops and returns the questions to its orchestrator, which asks and resumes it. Open `needs-decision` questions from GitHub may be offered too.
+
+Set it with the invocation (`/work-loop ask:live`, `/work-loop ask:github`) or by saying so mid-session ("I'm here, ask me" → live; "I'm leaving" → github). On a switch to github, post any still-unanswered live questions to their issues before continuing. Either way the record is the same: a live answer is posted as a `### Owner answers` comment with `Source: live session` and recorded in the Atlas exactly like a GitHub answer.
+
 ## 1. Owner questions (agent → issue)
 
 Posted as one issue comment by any agent that finds owner forks, together with the `needs-decision` label. The agent then continues with other eligible work; it never waits.
@@ -43,7 +52,7 @@ Q2: other — "<owner's words, verbatim>"
 Q3: skip
 ```
 
-`### Owner answers` is reserved for the owner (directly or through ChatGPT); agents never write that heading. ChatGPT does not edit labels, the Atlas or code.
+`### Owner answers` is reserved for the owner's own words: written by the owner, by ChatGPT for the owner, or by an agent transcribing answers the owner just gave in an `ask:live` session (marked `Source: live session`). Agents never write it for their own defaults or guesses. ChatGPT does not edit labels, the Atlas or code.
 
 **Pickup:** at its normal scan, `work-loop` (or `unblock`) treats a `needs-decision` issue whose latest `### Owner answers` comment is newer than its latest `### Owner questions` block as answered. It records product/architecture answers in the owning Atlas, comments the Atlas IDs, removes `needs-decision` once nothing blocking remains, and the issue becomes eligible again. `skip` keeps that question open; an ambiguous `other` answer gets a follow-up question in a new block instead of a guess.
 
