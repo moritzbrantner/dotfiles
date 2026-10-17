@@ -27,3 +27,10 @@ Only ask for information or approval that an agent cannot derive, obtain or impl
 5. **Continue** with the next issue until none remain or the user stops, then return to the `work-loop` skill.
 
 Ask one question at a time; never send a questionnaire.
+
+## Voice sessions: brief and answers
+
+Formats are in `docs/owner-questions.md`.
+
+- **`/unblock brief`:** collect open owner question blocks from `needs-decision` issues (oldest first, grouped by repository) into one plain-text brief for a ChatGPT/voice session. Ask nothing and write nothing.
+- **Pasted `ANSWERS` block:** for each `<repo>#<n>.Q<k>` line, record the answer exactly as in step 4 (Atlas when it is a product or architecture decision, issue comment with the verbatim owner words, remove `needs-decision` once every blocking question on that issue is answered). Interpret `other` answers from the verbatim words; if one is genuinely ambiguous, keep that issue blocked and add a follow-up question to its block rather than guessing. `skip` leaves the question open.

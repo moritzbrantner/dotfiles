@@ -121,6 +121,8 @@ unverified success.
 
 ## Persist only durable architecture choices
 
+Placement follows `steer`: product behavior → Atlas; consequential how → this register or an existing ADR; worker invariants → `AGENTS.md`; single-slice choices → issue/PR. Apply the owner principles in `coding-agent-conventions` (no compatibility shims or verification ceremony unless required) when recommending options.
+
 Reuse the owning repository's existing ADR or architecture documentation if it already
 covers this choice. Otherwise use **docs/technical-decisions.md** as the single concise
 technical-decision register, creating it only once a consequential decision is worth

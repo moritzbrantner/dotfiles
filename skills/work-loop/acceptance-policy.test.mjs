@@ -41,3 +41,16 @@ test("scope, decisions and dependencies still govern execution", () => {
   assert.match(workLoop, /needs-decision/);
   assert.match(preflight, /reconcile.*approved.*Decisions/i);
 });
+
+test("owner forks are asked asynchronously with one shared threshold", () => {
+  const steer = readFileSync(new URL("../steer/SKILL.md", import.meta.url), "utf8");
+  const unblock = readFileSync(new URL("../unblock/SKILL.md", import.meta.url), "utf8");
+  const formats = readFileSync(new URL("../../docs/owner-questions.md", import.meta.url), "utf8");
+  assert.match(workLoop, /never waiting or relaying questions live/);
+  assert.match(workLoop, /agent default/);
+  assert.match(preflight, /Fork coverage \(creation gate\)/);
+  assert.match(steer, /owner fork/);
+  assert.match(unblock, /\/unblock brief/);
+  assert.match(formats, /ANSWERS <date>/);
+  assert.match(formats, /never mark a "maybe" as DECIDE/i);
+});
