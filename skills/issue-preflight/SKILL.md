@@ -5,16 +5,18 @@ description: Keep GitHub issues aligned with approved product outcomes and repos
 
 # Issue preflight
 
-Determine whether a GitHub issue is actionable and what it must deliver. This is a **scope check**, not a testing stage.
+Check scope and readiness using the implementing worker's investigation. Follow [owner questions and incorporation](../../docs/owner-questions.md); no separate preparation agent or document.
 
-1. Read the issue and relevant `AGENTS.md`, installed conventions, code and approved product Decisions. Use scoped `daq` or the owning Atlas Markdown when present. Follow stable IDs and local schema. An unanswered unrelated Question, roadmap phase or historical priority is not a blocker.
-2. For user-facing features, state the **observable outcome**, entrypoint (Pages or equivalent), main user action and expected result. A backend/library prerequisite is a separate technical enabler, not proof that its consuming feature works. Headless work instead names its API, executable or produced artifact.
-3. Preserve the intended scope and authority boundaries. Split oversized work into coherent slices without silently discarding required behavior; use native GitHub dependencies for true prerequisites in other repositories.
-4. A missing test, fixture, public dataset, tool or ordinary implementation detail does not require owner input or a speculative blocker. If a consequential product decision, private input, authorization or license is indispensable, record the exact issue-specific gap and use `unblock`; new major product direction goes to `grill`. Do not invent an agent-selected MVP.
-5. **Happy-path default:** Issue readiness requires a clear outcome, not a tests-first handoff, browser test plan, screenshot, independent acceptance, benchmark or pre-merge deployment proof. Use existing repository-required checks. Invoke `acceptance-contract` only for a serious observed failure, a concrete high-consequence risk, or an explicit requirement/request. Distinguish expected behavior from behavior actually tested.
+1. Use the loaded instruction baseline; read the issue, relevant code/workflow, approved Decisions and newly relevant rules. Use scoped `daq` or owning Atlas Markdown when present. Follow stable IDs and local schema. Unrelated Questions, roadmap phases and historical priorities are not blockers.
+2. State the observable outcome, entrypoint, main action and expected result. User-facing work delivers an integrated user journey; a backend enabler alone does not complete its consuming feature. Headless work names its API, executable or artifact.
+3. Obtain ordinary prerequisites and identify the remaining owner choices before affected implementation. Reuse settled preferences; ask about unresolved user-facing behavior even when reversible. A broad approved capability may still have open details.
+4. Preserve full approved scope. If smaller delivery is necessary, propose a usable split with all remaining obligations and obtain owner approval unless already approved. Use native GitHub dependencies for actual prerequisites. Do not substitute temporary inputs for required real ones.
+5. **Happy-path default:** Readiness requires a clear outcome, not a tests-first handoff, browser test plan, screenshot, independent acceptance, benchmark or deployment proof. Existing required gates remain. Use `acceptance-contract` only for an observed serious failure, concrete high-consequence risk or explicit requirement/request. Distinguish expected behavior from behavior actually tested.
 
 ## Issue reconciliation
 
-`/steer` may create/update issues for **approved and durably recorded** Decisions. Search open/closed issues, PRs and existing code before writing; update matching coverage instead of duplicating it. Tentative Questions and brainstorming do not authorize implementation issues. When approved intent is still in an unmerged document PR, link it and hold implementation until that source merges; an answered Question is not `needs-decision`.
+At the owner's end-of-conversation signal, reconcile **approved Decisions** into necessary issues. Search open/closed issues, PRs and relevant code; update matching coverage instead of duplicating it. Broad approved direction may produce an issue with recorded open questions; issue creation alone does not make it ready. Tentative ideas remain Questions.
 
-Return **ready**, **needs owner decision** or **needs decomposition**. State only the outcome, necessary constraints, actual blockers and any known failed evidence.
+Link durable decisions and exact blockers. An answered choice is not `needs-decision`; an authoritative change awaiting its required merge is a source prerequisite. An explicit live answer may guide the current authorized worker before capture; other workers need the incorporated source.
+
+Return **ready**, **needs owner decision**, **needs input/dependency** or **needs owner-approved split**, with only the outcome, constraints and actual blockers.

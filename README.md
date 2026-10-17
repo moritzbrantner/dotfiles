@@ -69,120 +69,41 @@ Copy or symlink these into a project when appropriate, then keep project-specifi
 
 ## Coding-agent workflow
 
-**Design first for new products and major features:** `/steer` (guided interview or free-form idea discussion, using `grill` for consequential forks) → owning Decision Atlas / existing product docs → optional `/tech-steer` for consequential engineering trade-offs → `issue-preflight` → implementation issues → `work-loop`. Already-specified work, routine bugs and refactors can enter the loop directly. No second scheduler or queue is needed.
+Use [steer](skills/steer/SKILL.md) for broad direction or detailed questions, then [work-loop](skills/work-loop/SKILL.md) for authorized implementation. Routine bugs and already specified work may enter the loop directly.
 
-Implementation work runs through one global loop over GitHub issues. **There is no
-product-category priority schedule**: finish existing PRs, then implement the next
-unblocked issue in neutral deterministic order. A previous "speech before music",
-"after milestone X" or "deferred" note is not a dependency. When a real owner-only
-input is missing, record the exact blocker, do other actionable work, and ask the
-human only to unblock that issue; otherwise do not ask for priorities. Product
-decisions still define behavior and acceptance, not work ordering. The existing
-single-worker-per-repository and required merge gates remain. **Happy path:** implement
-without proactive acceptance authoring, extra test runs, browser checks or AI reviews;
-investigate concrete failures or high-consequence risks. Unrun checks remain unverified.
-
-Product decisions use one human-facing entry point backed by the existing
-specialist skills, without another loop:
-
-- `skills/steer` — run `/steer` in the current repository either as a **guided interview** (one consequential A/B/C question at a time) or as a **free-form discussion** (describe multiple ideas; the agent groups them by feature, reconciles them with existing Atlas entries, asks about material conflicts, and records clear owner intent). Both modes **automatically reconcile approved, durably recorded Decisions into necessary bounded GitHub issues** through `issue-preflight`, reusing `grill`, `atlas-audit`, `unblock`, and `acceptance-contract`. Tentative ideas remain Questions, not automatic implementation work. Owner-approved, non-executable intent documentation is committed directly when permitted (or its existing documentation-only PR is merged promptly), without waiting on CI; implementation PRs remain separate. Issues derived from still-unmerged intent PRs remain non-actionable until that source lands.
-
-- `skills/tech-steer` — **guided technical-design interview by default**: examine settled product Decisions and implementation evidence, then ask one consequential architecture/reuse trade-off at a time (A/B/C with a reasoned recommendation). Record owner-approved answers in an existing ADR or `docs/technical-decisions.md` and continue steering; use explicit `/tech-steer audit` only for documentation/review. Routine details require no interview or extra document. It does not create an implementation loop or independently authorize issue writes.
-- `skills/work-loop` — implement and merge the next unblocked issue without extra verification by default. Existing repository-required CI and protection remain binding. Investigate failed gates, observed regressions and concrete serious risks.
-- `skills/unblock` — resolve blocking Questions discovered during execution; record owner answers in the Atlas when present, then link and unblock the issue.
-- `skills/grill` — refine new product/major-feature direction **before** implementation issues; ask one consequential question at a time, then record concise Decisions/Questions in the owning Atlas when present (otherwise existing docs). Proactively use concrete illustrated A/B/C alternatives for unresolved visual choices.
-- `skills/atlas-audit` — audit important historical decisions and implementation drift, propose reviewable Atlas updates, and propose bounded issues for owner-approved changes; apply issue writes only when explicitly requested or within an authorized work loop.
-- `skills/issue-preflight` — ensure a bounded user-observable outcome and resolve genuine missing product decisions; no mandatory tests-first handoff.
-- `skills/acceptance-contract` — diagnose serious regressions or provide explicitly requested independent acceptance, not a mandatory preimplementation step.
-
-**Default documentation model:** `AGENTS.md` defines repo-specific engineering boundaries;
-a feature-oriented Decision Atlas defines owner-approved product behavior and outstanding
-Questions; an ADR or `docs/technical-decisions.md` is **optional** for a non-obvious lasting architectural trade-off, chosen through `tech-steer` when useful.
-Implementation belongs in code and tests, and GitHub issues contain the work to do.
-Do not require an ADR, design plan, or separate Markdown specification for routine changes.
-
-**Approved instruction fast path:** Owner-approved changes only to non-executable
-instructions, plans and Decisions go directly into the owning default branch when
-repository protection permits. Do not create a PR or require green CI simply to
-persist direction, including direction to repair broken CI. Check the actual diff,
-current head, repository rules, document integrity and any required human review;
-land existing documentation-only PRs instead of leaving stale intent. The ordinary
-PR and verification gates still apply to code, configuration, tests and
-machine-enforced contracts, even if stored in Markdown.
-
-**Flowcharts:** [human steering, skill routing, implementation and authority](docs/human-steering-flowcharts.md).
-
-GitHub issues and pull requests are the only **execution state**. Product intent lives in the owning repository's Decision Atlas when present; roadmaps, ADRs and tests provide supporting detail without duplicating decision authority. Repositories keep their own instructions, conventions, tests and architecture; they do not define their own agent loops, claims, queues or status labels.
-
-**Feature delivery rule:** User-facing issues must deliver a real integrated Pages/user journey (or equivalent), not only an isolated backend. Browser acceptance and published-route audits are performed when required or when concrete failures arise; otherwise state that they were not verified.
+**[Flowcharts: happy path and exceptions](docs/human-steering-flowcharts.md)** · **[Owner questions and incorporation](docs/owner-questions.md)**
 
 ### Broad steering and issue investigation
 
-Owner decision, process steering Q2 (2026-10-17): **B — investigate the selected issue before changing code, alongside broader product steering.**
-
-- Broad steering, including voice sessions while driving, can approve a capability and intended outcome without settling every detail: for example, "add export to the list." Preserve that direction and reconcile necessary GitHub issues through the existing steering rules.
-- Before coding the selected issue, the implementing worker examines the relevant workflow, code, conventions, approved decisions and available inputs, then prepares the remaining owner questions it can identify. Settle blocking questions before implementation; later discoveries can still require questions.
-- Apply [Q1's owner decision authority](AGENTS.md#owner-decision-authority). Reuse approved direction without asking again; capability approval does not settle unspecified user-facing behavior.
-- Use the same worker and existing GitHub records. No separate preparation document, question quota or exhaustive prediction of future forks is required. Broad and detailed steering remain available in any session.
+- Approve broad outcomes in any session, including voice: “add export to the list” need not settle every detail.
+- Before affected implementation, the same worker examines the selected issue, code, approved decisions, conventions and inputs, then asks remaining owner questions.
+- Apply settled preferences first. Ask about unresolved user-facing behavior, workflow, appearance or scope even when reversible; choose ordinary technical details yourself.
+- Keep answers and revisions in conversation. When the owner ends it or says **“capture and incorporate now”**, reconcile owning Markdown and necessary GitHub issues in the same session, without another confirmation.
 
 ### Work-loop mental model
 
-The skill file is the operational definition; this diagram is the human-readable control flow. Product-category priority and historical roadmap deferral have no scheduling authority. A current issue should produce one coherent PR. If the selected issue contains separable remainder beyond one coherent PR, create focused follow-up issues for that remainder rather than expanding the PR indefinitely. Unrelated findings are not added to the work queue.
+Load current merged personal skills and basic instructions once per run. Resume existing work, select the oldest eligible issue, prepare it, implement the full approved outcome, satisfy existing required gates, merge and repeat. Keep one active implementation writer per repository. Issues, PRs and native dependencies hold execution state; product priorities and old roadmap deferrals do not schedule it.
 
-```mermaid
-flowchart TD
-    IDEA[New product or major feature]:::start --> GRILL[grill: refine direction]:::action
-    GRILL --> ATLAS[Owning Atlas / product docs]:::action
-    ATLAS --> PREFLIGHT[issue-preflight: bounded outcome]:::action
-    PREFLIGHT --> ISSUES[GitHub implementation issues]:::action
-    ISSUES --> START([START WORK LOOP]):::start
+`/work-loop ask:live` asks in the conversation. `/work-loop ask:github` (default) posts unanswered blockers and continues other eligible work. Explicit live answers may guide current authorized implementation; their recording waits for conversation end. Ask before shipping a smaller slice or promoting a local preference into shared conventions unless already approved.
 
-    START --> EXISTING{Existing work to finish?}:::question
-    EXISTING -->|Yes| FINISH[Finish / repair existing PR]:::yes
-    FINISH --> VERIFY[Check existing required gates]:::action
-    EXISTING -->|No| ISSUE{Next unblocked issue?}:::question
-    ISSUE -->|Yes| INTENT[issue-preflight + scoped daq lookup]:::action
-    INTENT --> GAP{Material design choice missing?}:::question
-    GAP -->|No| IMPLEMENT[Implement coherent scope]:::yes
-    GAP -->|Yes| BLOCK[Mark needs-decision and park issue]:::no
-    BLOCK --> ISSUE
-    DECISION -->|Yes| ASK[unblock / grill: one owner question]:::action
-    ISSUE -->|No| DECISION{Genuine human-owned blocker?}:::question
-    DECISION -->|No| DONE([NOTHING ACTIONABLE]):::stop
-    ASK --> RECORD[Persist in Atlas; link issue]:::action
-    RECORD --> START
+Happy-path work adds no proactive acceptance agent, extra tests, browser/deployment checks or AI review. Existing required CI and merge rules remain; observed failures and concrete serious risks trigger narrow investigation. Report unrun checks as unverified.
 
-    IMPLEMENT --> EXTRA{Separable remainder?}:::question
-    EXTRA -->|Yes| FOLLOWUP[Create focused follow-up issue]:::yes
-    EXTRA -->|No| VERIFY
-    FOLLOWUP --> VERIFY
-    VERIFY --> PASS{Required gates clear?}:::question
-    PASS -->|Yes| MERGE[Guarded merge; report unverified behavior]:::yes
-    PASS -->|No| FIX[Repair same PR]:::no
-    FIX --> VERIFY
-    MERGE --> START
+| Skill | Role |
+| --- | --- |
+| [steer](skills/steer/SKILL.md) | Product conversation and end-of-session incorporation |
+| [tech-steer](skills/tech-steer/SKILL.md) | Consequential technical trade-offs |
+| [grill](skills/grill/SKILL.md) | Explore unresolved product/design choices |
+| [unblock](skills/unblock/SKILL.md) | Resolve actual owner blockers from GitHub |
+| [issue-preflight](skills/issue-preflight/SKILL.md) | Check outcome, scope and readiness |
+| [work-loop](skills/work-loop/SKILL.md) | Prepare, implement and merge eligible work |
+| [atlas-audit](skills/atlas-audit/SKILL.md) | Requested decision/drift audit |
+| [acceptance-contract](skills/acceptance-contract/SKILL.md) | Required/requested independent evidence or serious failure investigation |
 
-    classDef start fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#111;
-    classDef stop fill:#e5e7eb,stroke:#4b5563,stroke-width:2px,color:#111;
-    classDef question fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#111;
-    classDef yes fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#111;
-    classDef no fill:#fee2e2,stroke:#dc2626,stroke-width:2px,color:#111;
-    classDef action fill:#f3f4f6,stroke:#6b7280,stroke-width:1px,color:#111;
-```
+Product intent belongs in the owning Atlas, consequential architecture in existing technical records, repository invariants in `AGENTS.md`, approved shared preferences in coding-agent-conventions, and slice details in issues/PRs. Decisions are approved; Questions are unsettled; `[x]` means built. Preserve IDs, history and local schema. No extra document is required for routine work.
 
-For a guided session, use `/steer combat` to inspect current intent and answer one
-consequential **define / decide / approve / revise / verify** question at a time. For a
-free-form session, use `/steer discuss combat` or simply start describing ideas: the agent
-collects them, sorts them by product feature, compares prior Decisions/Questions and
-issues, records unambiguous owner intent, and asks one question at a time only to resolve
-material gaps or contradictions. Both modes update existing relevant issues or create
-only necessary bounded ones after approved intent is recorded, without extra permission;
-implementation runs separately through `/work-loop`. You can invoke specialist skills
-directly when needed.
+Approved non-executable instructions go directly to the owning default branch when permitted. Preserve repository protection and approval rules; code, configuration, tests and machine-enforced contracts use their normal validated path.
 
-To define a new product or major feature, invoke `grill` first (for example, "/grill ARPG combat architecture"). It asks one consequential question at a time, normally 3–5 per session, with concrete illustrated A/B/C alternatives for visual choices, and persists the answers in the repository-owned Atlas when present. Use scoped `daq` queries to reuse settled decisions; when the tool is unavailable, read the relevant Markdown. Only then use `issue-preflight` to turn that direction into bounded implementation issues. During work, `unblock` is the fallback for genuinely new blocking Questions. Neither skill requires a new global database, label, or queue. The work loop invokes `acceptance-contract` for serious observed failures or explicitly requested independent evidence, not for every behavior change.
-
-**Using these skills in ChatGPT:** With GitHub connected, ask for the [steer skill](https://github.com/moritzbrantner/dotfiles/blob/main/skills/steer/SKILL.md) in interview mode, or say "Use /steer for Scrabble; I'll talk freely and you organize the ideas into the Decision Atlas, clarify contradictions and reconcile issues." For a design-only interview you can also invoke the [grill skill](https://github.com/moritzbrantner/dotfiles/blob/main/skills/grill/SKILL.md). For technical choices, invoke [tech-steer](https://github.com/moritzbrantner/dotfiles/blob/main/skills/tech-steer/SKILL.md) on a named repository or Atlas Decision. By default it asks one grounded technical-design question at a time, records each approved answer, and continues; say `/tech-steer audit` for a documentation-only review. It never implements the solution. ChatGPT can read the current GitHub files and follow them. This repository link does not register a native ChatGPT slash command; refer to the skill explicitly when you want that workflow. For voice-only use, the short spoken option descriptions must stand on their own without images.
+To use these workflows in a GitHub-connected ChatGPT session, reference the linked skill and target repository. Broad and detailed steering are available in either voice or computer sessions.
 
 For a manual installation **instead of the bootstrap**, link Claude Code and Codex skills:
 

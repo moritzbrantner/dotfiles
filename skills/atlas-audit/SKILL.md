@@ -7,6 +7,7 @@ description: Audit historical decisions and drift; propose Atlas updates and app
 
 Reconstruct consequential intent without treating current implementation as intended product.
 This is an on-demand investigation, not a new work loop, issue queue, or decision authority.
+Follow the [owner-question and incorporation protocol](../../docs/owner-questions.md): keep new answers in conversation until the owner ends it or requests capture.
 
 ## Scope and evidence
 
@@ -45,13 +46,14 @@ For each finding, briefly give:
 - **Already documented:** Do not duplicate it. If still applicable, stop; if code diverges,
   identify the implementation gap.
 - **Historically approved but missing:** Propose the shortest faithful Decision addition with
-  provenance in the *owning* repository. Do not infer rationale or approval. If the owner
-  confirms the addition, persist it under `/steer`'s approved-documentation fast path;
-  otherwise keep it as a reviewable proposal rather than committing inferred intent.
+  provenance in the *owning* repository. Reuse demonstrated approval; do not infer missing
+  rationale or intent. Include approved additions in authorized end-of-conversation
+  incorporation; a read-only audit leaves them as proposals.
 - **Unresolved or contradictory:** Propose a Question, or retrieve the existing one. Ask the
   owner **one consequential question at a time** (use `grill` for a design discussion);
   do not choose for them. An unanswered Question need not block unrelated work.
-- **Revision requested:** Confirm the new direction before modifying product intent.
+- **Revision requested:** Clarify ambiguous revisions; incorporate clear owner instructions
+  without another confirmation at the end-of-conversation signal.
   In current Atlas repositories, revise the existing entry inline with `~~old wording~~ replacement`;
   retire it with fully struck wording. Preserve its stable ID and Git history. Retain existing
   explicit `supersedes` relations in older formats and follow repository-local revision rules.
@@ -68,13 +70,14 @@ over repeatedly rediscovering the same connection.
 ## Turn approved direction into work
 
 Once the owner-approved Atlas intent is established, compare it with current behavior. Creating
-or updating GitHub issues requires an explicit user request or an already authorized work loop,
-consistent with `issue-preflight`. Approval of product intent alone does not authorize issue writes.
+or updating GitHub issues requires an explicit request, authorized steering incorporation or
+an already authorized work loop, consistent with `issue-preflight`.
 For a read-only audit, report proposed issue changes without applying them. Within authorized
 issue work, for each material gap, first update an existing issue if it already covers the work; otherwise use
 `issue-preflight` to create a bounded implementation issue in the responsible repository.
-Reference the authoritative Atlas ID(s), observed mismatch, intended outcome, independent
-acceptance evidence, and any native dependencies. Split only when independently actionable.
+Reference the authoritative Atlas ID(s), observed mismatch, intended outcome, available
+relevant evidence and native dependencies. Obtain owner approval before reducing delivery
+into smaller slices unless the split is already approved.
 Do not turn unapproved hypotheses into issues or start implementation as part of
 this audit. Land explicitly approved, non-executable intent under `/steer`'s
 persistence rule, but do not auto-merge proposals still needing owner judgment.

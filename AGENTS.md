@@ -21,15 +21,21 @@ This repository owns personal, reusable development-environment preferences.
 Owner decision, process steering Q1 (2026-10-17): **B — reserve unresolved user-facing behavior for the owner.**
 
 - Apply repository-local instructions, the repository's installed coding-agent-conventions, and approved product and technical decisions first. Use settled preferences without asking again.
-- If user-facing behavior, workflow or appearance still has multiple plausible answers, ask the owner before choosing, even when the choice is reversible.
+- If user-facing behavior, workflow, appearance or scope still has multiple plausible answers, ask the owner before choosing, even when the choice is reversible.
 - Agents choose technical implementation details and straightforward repairs that preserve approved behavior. A recommendation or existing code alone does not approve new product intent.
 - Preserve explicit owner decisions. The owner accepts the extra confirmations and expects recorded taste and preferences to be applied consistently.
+- Follow [owner questions and incorporation](docs/owner-questions.md): keep steering answers in conversation until the owner ends it or requests capture. Ask before broadening a local preference into a shared convention or reducing delivery to a smaller slice.
+
+## Instruction baseline
+
+Start each work-loop run with current merged personal skills and load the basic instructions once. Keep that baseline during the run; do not refresh or recheck it per issue. Apply explicit owner redirection immediately and read newly relevant repository/path instructions as needed. Update repository-pinned conventions only through their normal version change.
 
 ## Decision Atlas and steering organization
 
 - As a **rule of thumb**, keep roughly **8–10 direct Decisions/Questions per product-feature branch**. Reassess after **2–3 narrowly related steering questions** and prefer the next consequential product capability over repeatedly refining minor edge cases.
 - When a branch needs more content, group it by meaningful **user workflows or feature topics**. This is a navigation heuristic, **not** a hard parser limit or a target to fill.
 - Preserve every existing **stable Decision Atlas ID, owner-approved meaning, provenance, and explicit references**. Do not renumber or silently rewrite history to make a tree look balanced. Follow the owning repository's parser, append-only and heading rules; an approved navigation-only reorganization may move entries only where its source format permits.
+- Decisions mean approved intent; Questions mean uncertainty; `[x]` means built only. Preserve explicit migration boundaries when older repositories use another checkbox meaning.
 - Keep routine UI polish, keyboard mechanics, numeric tuning, and test detail in implementation/acceptance work rather than growing the Atlas with one Question per small decision. The owning repository's product contract and implementation rules take precedence.
 
 ## Safety and portability

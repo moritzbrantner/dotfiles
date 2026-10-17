@@ -5,40 +5,28 @@ description: Elicit or synthesize product direction, record approved Decisions i
 
 # Steer
 
-Scope `/steer` to the current repository or named subsystem. Infer **guided interview** or **free-form discussion** from the owner's request; no mode-selection question.
+Scope to the current repository or named capability. Infer guided interview or free-form discussion from the request. Read and follow the shared [owner-question and incorporation protocol](../../docs/owner-questions.md).
 
 ## Establish intent
 
-- Read local `AGENTS.md`, applicable pinned conventions, and product authority. Use scoped `daq find/get/questions` for the Decision Atlas when available; verify against committed Markdown if its index may be stale. Without an Atlas, use existing product documents.
-- Check relevant existing Decisions, Questions, documentation PRs, open/closed issues, implementation, acceptance evidence and actual demo before asking or writing. Distinguish owner approval, proposed intent, implementation and observed acceptance.
-- Reserve Atlas Decisions/Questions for consequential product behavior, workflows, inputs/outputs, scope and trade-offs. Routine defects belong in issues; engineering choices belong in code, `AGENTS.md` or `/tech-steer`. A merged PR or passing test does not approve product intent.
-- During issue execution, ask only about an **indispensable unresolved owner choice on that issue**; an unrelated Atlas Question or historical product priority is not a blocker. Do not ask the owner to rank product areas, decide worker allocation or defer an implementable issue. Explicit product-design sessions may explore broader consequential questions without prioritizing the backlog.
+- Use the run's loaded instructions and installed conventions; load them once if needed. Read relevant approved product/technical decisions and newly applicable repository/path instructions. Use scoped `daq find/get/questions` when available; check Markdown if its index may be stale.
+- Inspect relevant code, issues and PRs to distinguish approved intent, proposals, implementation and observed results. Use available evidence without starting a proactive acceptance or browser audit.
+- Keep questions within the requested scope. Historical priorities and unrelated Atlas Questions do not block an implementable issue; do not ask the owner to allocate workers or rank the backlog.
 
 ## Discuss
 
-- **Guided:** Ask one consequential question at a time. Define the desired workflow, decide between 2–3 genuinely distinct A/B/C alternatives with trade-offs and a recommendation, approve a proposed statement, revise a cited Decision, or verify an observed demo. Open answers are valid. Avoid choices where a sensible default with specific overrides resolves the apparent alternatives.
-- **Free-form:** Collect the owner's ideas before synthesizing. Group them by product capability and owning repository; compare existing IDs and behavior, highlight material conflicts, and ask at most one clarification at a time. An unambiguous owner directive is approved without redundant confirmation; suggestions and "maybe" remain proposals/Questions.
-- For a narrow feature, reconsider breadth after roughly 2–3 consecutive questions; move to another consequential user journey or finish. Roughly 8–10 immediate Decision/Question children per Atlas branch is a navigation heuristic, not a quota or parser rule. Group longer topics by feature without renumbering existing IDs.
-- `skip`/`later` leaves a Question open without blocking unrelated work. `I don't care` delegates routine implementation details, not unresolved consequential product choices. On "stop" or "wrap up", persist settled intent and finish. If no consequential question remains, stop; do not invent one.
+- **Guided:** Ask one useful question at a time, with concrete alternatives, material trade-offs and a recommendation when warranted. Accept open answers. Continue with the next useful question in the same reply after an answer.
+- **Free-form:** Let the owner develop ideas, then synthesize by capability and owning repository. Clarify one unresolved point at a time.
+- Accept unambiguous directives without redundant confirmation. Keep suggestions, `maybe` and unsettled alternatives as Questions. `skip`/`later` leaves the choice open without blocking unrelated work.
+- Broad direction can approve “add export” while details remain open. Leave the implementing worker to investigate issue-specific questions before affected implementation.
+- Use no question quota or exhaustive design gate. Reconsider breadth after several narrow questions; group long Atlas branches by meaningful workflows without changing stable IDs.
 
-## Record answers
+## Incorporate at conversation end
 
-1. Persist approved product intent promptly in the **owning repository** under its Atlas schema. Default semantic leaves are **Decision** and **Question**; preserve locally defined kinds and checkbox meanings (`[x]` may mean approved, not implemented). For a Question answer, retain the Question and append a Decision with `Answers <id>`. For revisions, preserve stable IDs/history and use the local supersession or inline-strikethrough convention. Do not infer approval from code or chronology.
-2. Keep entries about product behavior and relevant rationale, not implementation plans or test matrices. Prefer the existing Atlas and `AGENTS.md`; use an ADR only for a consequential technical choice needing durable rationale. Without an Atlas, update existing authoritative product docs rather than creating a second source.
-3. **Approved, non-executable documentation:** Check the current default-branch head, existing documentation PRs, affected references and protection rules. Commit directly to default when permitted; otherwise finish the relevant documentation PR or create a short one. No CI, Codex review or independent acceptance handoff is required solely for approved intent. Never bypass branch protection or required human approval. Executable Markdown, code, tests, configuration, generated files and security rules retain their normal gates.
-4. Record actual commit/PR evidence. If authoritative intent is not merged, do not treat its unmerged content as an executable implementation requirement.
+Keep answers and revisions **in chat** until the owner declares the conversation finished or says **“capture and incorporate now.”** Then complete the shared incorporation protocol in the same session. Do not write per-answer comments or reconcile issues between questions. If no useful question remains, say so without inventing a capture trigger.
 
-## Reconcile GitHub issues
+- Reuse the existing Atlas/product documents and local answer, revision and migration conventions. Keep entries about approved product behavior and relevant rationale rather than implementation plans or test matrices.
+- Reconcile necessary issues against existing open/closed issues, PRs and code. Use `issue-preflight`; preserve full approved scope, native dependencies and existing coverage. Broad approved work may have an issue with explicit unresolved Questions.
+- Do not create an issue per Decision, for optional verification alone, or for unrelated defects. Report actual document/issue changes, pending merges and failed writes.
 
-`/steer` has standing authorization to reconcile **durably approved** product Decisions into necessary implementation issues, not to implement or merge feature PRs. Do this after recording each answer or coherent batch, before the next guided question; do not ask again for permission to create issues. Honor an explicit read-only/no-issue request.
-
-1. Compare approved outcomes and Atlas IDs with current code, real acceptance, **open and closed** issues, and PRs. Reuse or update coverage before creating anything. No issue for already verified behavior, tentative ideas, context-only Decisions or unresolved Questions; missing optional verification alone creates no work; a concrete failure can warrant acceptance.
-2. Use `issue-preflight` for uncovered, independently verifiable work. Describe the observable outcome, scope, exclusions, Atlas references, acceptance and native GitHub dependencies. One issue may cover several Decisions. Follow repository issue conventions and owning cross-repository contracts; don't generate an issue per Decision or plan an agent-selected MVP.
-3. If approved intent is still in an unmerged documentation PR, link that PR in affected issues and state that implementation waits for its merge. Do not label an answered choice `needs-decision`. If ownership or a material product choice remains unresolved, record a Question and withhold only the affected issue.
-4. Make reconciliation idempotent: update actual gaps, preserve unrelated issue scope and dependencies, and report writes that failed. An owner-approved Decision does not authorize unrelated defect-issue writes.
-
-## Continue or finish
-
-In guided mode, after recording and reconciling an answer, ask the next material question **in the same reply** unless the owner stopped or no consequential fork remains. Normally cover 3–5 questions per session; continue if asked. Free-form discussion has no quota.
-
-Report recorded Decision/Question IDs, issue coverage or changes, pending documentation merges, unverified acceptance and any indispensable owner input. Refer implementation to `work-loop`, historical reconstruction to `atlas-audit`, major product design to `grill`, technical choices to `tech-steer`, and issue blockers to `unblock`. Do not start implementation from `/steer`.
+Honor explicit read-only/no-issue limits. Steering does not authorize feature implementation or merging feature PRs. Use `tech-steer` for technical choices, `grill` for major product design, `unblock` for blockers and `work-loop` for authorized execution; no new conversation is required.
