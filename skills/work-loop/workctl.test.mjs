@@ -121,13 +121,11 @@ test("Codex review status is informational rather than a latest-head merge gate"
     "running",
   );
   assert.equal(
-    codexReview([{ ...completed, body: completed.body.replace("`ef9ecb8`", "") }], "ef9ecb8")
-      .state,
+    codexReview([{ ...completed, body: completed.body.replace("`ef9ecb8`", "") }], "ef9ecb8").state,
     "unknown",
   );
   assert.equal(
-    codexReview([{ ...completed, user: { login: "fake-codex-user", id: 123 } }], "ef9ecb8")
-      .state,
+    codexReview([{ ...completed, user: { login: "fake-codex-user", id: 123 } }], "ef9ecb8").state,
     "absent",
   );
 });
@@ -166,10 +164,7 @@ test("only untriaged high-priority Codex comments block readiness", () => {
     ]),
     1,
   );
-  assert.equal(
-    unansweredBlockingCodexFindings([{ ...p1, user: { login: "spoofed" } }]),
-    0,
-  );
+  assert.equal(unansweredBlockingCodexFindings([{ ...p1, user: { login: "spoofed" } }]), 0);
 });
 
 test("PR classification", () => {
@@ -350,44 +345,109 @@ test("scan groups open PRs and leaves stacked PRs waiting without inspecting the
     `#!/usr/bin/env node
 const fixture = JSON.parse(process.env.WORKCTL_FIXTURE);
 const endpoint = process.argv[3];
-const value = fixture[endpoint];
+const fields = process.argv.slice(4).filter((arg, index, all) => all[index - 1] === "-f");
+let value;
+if (endpoint === "graphql") {
+  const query = fields.find((field) => field.startsWith("query=")) ?? "";
+  if (query.includes("search(")) {
+    const q = fields.find((field) => field.startsWith("q="));
+    if (q !== "q=is:pr is:open user:moritzbrantner sort:updated-desc") throw new Error(q);
+    value = fixture.graphqlSearch;
+  } else {
+    const ids = fields.filter((field) => field.startsWith("ids[]=")).map((field) => field.slice(6));
+    value = { data: { nodes: ids.map((id) => fixture.graphqlNodes[id]) } };
+  }
+} else {
+  value = fixture[endpoint];
+}
 if (value === undefined) throw new Error("Unexpected endpoint: " + endpoint);
 process.stdout.write(JSON.stringify(value));
 `,
     { mode: 0o755 },
   );
   const codex = { login: "chatgpt-codex-connector[bot]", id: 199175422 };
-  const search =
-    "search/issues?q=" +
-    encodeURIComponent("is:pr is:open user:moritzbrantner") +
-    "&sort=updated&order=desc&per_page=100";
+  const codexActor = { __typename: "Bot", login: "chatgpt-codex-connector", databaseId: 199175422 };
+  const repository = {
+    name: "dotfiles",
+    owner: { login: "moritzbrantner" },
+    defaultBranchRef: { name: "main" },
+  };
+  const node = (number, head, overrides = {}) => ({
+    number,
+    state: "OPEN",
+    isDraft: false,
+    headRefOid: head,
+    baseRefName: "main",
+    mergeable: "MERGEABLE",
+    mergeStateStatus: "CLEAN",
+    author: { __typename: "User", login: "owner", databaseId: 1 },
+    repository,
+    commits: { nodes: [{ commit: { statusCheckRollup: null } }] },
+    comments: { pageInfo: { hasNextPage: false }, nodes: [] },
+    reviewThreads: { pageInfo: { hasNextPage: false }, nodes: [] },
+    ...overrides,
+  });
+  const thread = (id, body) => ({
+    comments: {
+      pageInfo: { hasNextPage: false },
+      nodes: [
+        { databaseId: id, body, authorAssociation: "NONE", replyTo: null, author: codexActor },
+      ],
+    },
+  });
   const fixture = {
-    [search]: [
-      {
-        items: [
-          {
-            number: 21,
-            repository_url: "https://api.github.com/repos/moritzbrantner/dotfiles",
-          },
-          {
-            number: 22,
-            repository_url: "https://api.github.com/repos/moritzbrantner/dotfiles",
-          },
-          {
-            number: 23,
-            repository_url: "https://api.github.com/repos/moritzbrantner/dotfiles",
-          },
-          {
-            number: 24,
-            repository_url: "https://api.github.com/repos/moritzbrantner/dotfiles",
-          },
-          {
-            number: 25,
-            repository_url: "https://api.github.com/repos/moritzbrantner/dotfiles",
-          },
-        ],
+    graphqlSearch: {
+      data: {
+        search: {
+          pageInfo: { hasNextPage: false, endCursor: null },
+          nodes: ["PR21", "PR22", "PR23", "PR24", "PR25"].map((id) => ({ id })),
+        },
       },
-    ],
+    },
+    graphqlNodes: {
+      // Truncated comments force the REST fallback for #21.
+      PR21: node(21, "1111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {
+        comments: { pageInfo: { hasNextPage: true }, nodes: [] },
+      }),
+      PR22: node(22, "2222222bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", { baseRefName: "agent/parent" }),
+      PR23: node(23, "3333333ccccccccccccccccccccccccccccccccc", {
+        author: { __typename: "Bot", login: "renovate", databaseId: 2 },
+      }),
+      PR24: node(24, "4444444ddddddddddddddddddddddddddddddddd", {
+        commits: {
+          nodes: [
+            {
+              commit: {
+                statusCheckRollup: {
+                  contexts: {
+                    pageInfo: { hasNextPage: false },
+                    nodes: [
+                      {
+                        __typename: "CheckRun",
+                        name: "ci",
+                        status: "COMPLETED",
+                        conclusion: "SUCCESS",
+                      },
+                      { __typename: "StatusContext", context: "legacy", state: "SUCCESS" },
+                    ],
+                  },
+                },
+              },
+            },
+          ],
+        },
+        reviewThreads: {
+          pageInfo: { hasNextPage: false },
+          nodes: [thread(88, "**[P2] Advisory finding**")],
+        },
+      }),
+      PR25: node(25, "5555555eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", {
+        reviewThreads: {
+          pageInfo: { hasNextPage: false },
+          nodes: [thread(89, "**[P1] Blocking finding**")],
+        },
+      }),
+    },
     "repos/moritzbrantner/dotfiles": { default_branch: "main" },
     "repos/moritzbrantner/dotfiles/pulls/21": {
       state: "open",
@@ -412,63 +472,6 @@ process.stdout.write(JSON.stringify(value));
       ],
     ],
     "repos/moritzbrantner/dotfiles/pulls/21/comments?per_page=100": [[]],
-    "repos/moritzbrantner/dotfiles/pulls/21/reviews?per_page=100": [[]],
-    "repos/moritzbrantner/dotfiles/pulls/23": {
-      state: "open",
-      draft: false,
-      user: { login: "renovate[bot]", type: "Bot" },
-      head: { sha: "3333333ccccccccccccccccccccccccccccccccc" },
-      base: { ref: "main" },
-      mergeable: true,
-      mergeable_state: "clean",
-    },
-    "repos/moritzbrantner/dotfiles/commits/3333333ccccccccccccccccccccccccccccccccc/check-runs?filter=latest&per_page=100":
-      [{ check_runs: [] }],
-    "repos/moritzbrantner/dotfiles/commits/3333333ccccccccccccccccccccccccccccccccc/status?per_page=100":
-      [{ statuses: [] }],
-    "repos/moritzbrantner/dotfiles/pulls/23/comments?per_page=100": [[]],
-    "repos/moritzbrantner/dotfiles/pulls/24": {
-      state: "open",
-      draft: false,
-      user: { login: "owner", type: "User" },
-      head: { sha: "4444444ddddddddddddddddddddddddddddddddd" },
-      base: { ref: "main" },
-      mergeable: true,
-      mergeable_state: "clean",
-    },
-    "repos/moritzbrantner/dotfiles/commits/4444444ddddddddddddddddddddddddddddddddd/check-runs?filter=latest&per_page=100":
-      [{ check_runs: [] }],
-    "repos/moritzbrantner/dotfiles/commits/4444444ddddddddddddddddddddddddddddddddd/status?per_page=100":
-      [{ statuses: [] }],
-    "repos/moritzbrantner/dotfiles/issues/24/comments?per_page=100": [[]],
-    "repos/moritzbrantner/dotfiles/pulls/24/comments?per_page=100": [
-      [{ id: 88, in_reply_to_id: null, user: codex, body: "**[P2] Advisory finding**" }],
-    ],
-    "repos/moritzbrantner/dotfiles/pulls/25": {
-      state: "open",
-      draft: false,
-      user: { login: "owner", type: "User" },
-      head: { sha: "5555555eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" },
-      base: { ref: "main" },
-      mergeable: true,
-      mergeable_state: "clean",
-    },
-    "repos/moritzbrantner/dotfiles/commits/5555555eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee/check-runs?filter=latest&per_page=100":
-      [{ check_runs: [] }],
-    "repos/moritzbrantner/dotfiles/commits/5555555eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee/status?per_page=100":
-      [{ statuses: [] }],
-    "repos/moritzbrantner/dotfiles/issues/25/comments?per_page=100": [[]],
-    "repos/moritzbrantner/dotfiles/pulls/25/comments?per_page=100": [
-      [{ id: 89, in_reply_to_id: null, user: codex, body: "**[P1] Blocking finding**" }],
-    ],
-    "repos/moritzbrantner/dotfiles/pulls/22": {
-      state: "open",
-      draft: false,
-      head: { sha: "2222222bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
-      base: { ref: "agent/parent" },
-      mergeable: true,
-      mergeable_state: "clean",
-    },
   };
   const source = fileURLToPath(new URL("./workctl.mjs", import.meta.url));
   try {
@@ -493,9 +496,7 @@ process.stdout.write(JSON.stringify(value));
       "absent",
     );
     assert.match(output.broken[0].reasons[0], /unanswered high-priority Codex finding/);
-    assert.deepEqual(output.waiting[0].reasons, [
-      "base agent/parent is not default branch main",
-    ]);
+    assert.deepEqual(output.waiting[0].reasons, ["base agent/parent is not default branch main"]);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
