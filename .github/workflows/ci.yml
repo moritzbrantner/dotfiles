@@ -23,4 +23,6 @@ jobs:
           bun-version: "1.4.3"
       - name: Install configuration validators
         run: bun install --global eslint@9.39.4 oxlint@1.80.0 oxfmt@0.54.0
-      - run: node scripts/check.mjs
+      - name: Run canonical checks in an isolated process namespace
+        # Disk safety tests inspect /proc and must not observe runner service processes.
+        run: sudo env "PATH=$PATH" unshare --pid --fork --mount-proc node scripts/check.mjs
