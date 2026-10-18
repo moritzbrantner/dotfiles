@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { spawnSync } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
 
 const DEFAULT_OWNER = "moritzbrantner";
 const CODEX_BOT_ID = 199175422;
@@ -11,9 +11,13 @@ const TRUSTED_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 
 export function parseTarget(value) {
   const url = value.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/);
-  if (url) return { owner: url[1], repo: url[2], number: Number(url[3]) };
+  if (url) {
+    return { owner: url[1], repo: url[2], number: Number(url[3]) };
+  }
   const short = value.match(/^(?:(?<owner>[^/#]+)\/)?(?<repo>[^/#]+)#(?<number>\d+)$/);
-  if (!short) throw new Error(`invalid PR target: ${value}`);
+  if (!short) {
+    throw new Error(`invalid PR target: ${value}`);
+  }
   return {
     owner: short.groups.owner ?? DEFAULT_OWNER,
     repo: short.groups.repo,
@@ -26,7 +30,9 @@ function gh(args) {
     encoding: "utf8",
     maxBuffer: 20 * 1024 * 1024,
   });
-  if (result.error) throw result.error;
+  if (result.error) {
+    throw result.error;
+  }
   if (result.status !== 0) {
     throw new Error((result.stderr || result.stdout || `gh exited ${result.status}`).trim());
   }
@@ -47,7 +53,9 @@ function optionalApi(endpoint) {
     encoding: "utf8",
     maxBuffer: 20 * 1024 * 1024,
   });
-  if (result.error) throw result.error;
+  if (result.error) {
+    throw result.error;
+  }
   if (result.status === 0) {
     return result.stdout.trim() ? JSON.parse(result.stdout) : null;
   }
@@ -66,22 +74,215 @@ function pageArrays(endpoint) {
   return pages(endpoint).flatMap((page) => (Array.isArray(page) ? page : []));
 }
 
-function openPullRequests(owner = DEFAULT_OWNER) {
-  const query = encodeURIComponent(`is:pr is:open user:${owner}`);
-  return pages(`search/issues?q=${query}&sort=updated&order=desc&per_page=100`).flatMap(
-    (page) => page?.items ?? [],
-  );
+const SCAN_SEARCH_QUERY = `query($q: String!, $after: String) {
+  search(query: $q, type: ISSUE, first: 100, after: $after) {
+    pageInfo { hasNextPage endCursor }
+    nodes { ... on PullRequest { id } }
+  }
+}`;
+// Detail queries are slow server-side (several seconds per batch), so small
+// batches run concurrently instead of one long sequential cursor walk.
+const SCAN_BATCH_SIZE = 10;
+const SCAN_CONCURRENCY = 8;
+const SCAN_DETAIL_QUERY = `query($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    ... on PullRequest {
+      number state isDraft headRefOid baseRefName mergeable mergeStateStatus
+      author { ...actor }
+      repository { name owner { login } defaultBranchRef { name } }
+      commits(last: 1) {
+        nodes { commit { statusCheckRollup { contexts(first: 100) {
+          pageInfo { hasNextPage }
+          nodes {
+            __typename
+            ... on CheckRun { name status conclusion }
+            ... on StatusContext { context state }
+          }
+        } } } }
+      }
+      comments(first: 100) {
+        pageInfo { hasNextPage }
+        nodes { body createdAt updatedAt author { ...actor } }
+      }
+      reviewThreads(first: 50) {
+        pageInfo { hasNextPage }
+        nodes { comments(first: 20) {
+          pageInfo { hasNextPage }
+          nodes {
+            databaseId body authorAssociation
+            replyTo { databaseId }
+            author { ...actor }
+          }
+        } }
+      }
+    }
+  }
+}
+fragment actor on Actor { __typename login ... on Bot { databaseId } ... on User { databaseId } }`;
+
+export function scanQuery(owner, repo = null) {
+  const scope = repo ? `repo:${repo.includes("/") ? repo : `${owner}/${repo}`}` : `user:${owner}`;
+  return `is:pr is:open ${scope} sort:updated-desc`;
 }
 
-function searchRepository(item) {
-  const match = item.repository_url?.match(/\/repos\/([^/]+)\/([^/]+)$/);
-  if (!match) throw new Error(`cannot determine repository for PR #${item.number}`);
-  return { owner: match[1], repo: match[2] };
+function ghJsonAsync(args) {
+  return new Promise((resolve, reject) => {
+    execFile(
+      process.env.WORKCTL_GH ?? "gh",
+      args,
+      { encoding: "utf8", maxBuffer: 20 * 1024 * 1024 },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error((stderr || stdout || error.message).trim()));
+        } else {
+          resolve(stdout.trim() ? JSON.parse(stdout) : null);
+        }
+      },
+    );
+  });
+}
+
+function searchPullRequestIds(query) {
+  const ids = [];
+  let after = null;
+  do {
+    const args = ["api", "graphql", "-f", `query=${SCAN_SEARCH_QUERY}`, "-f", `q=${query}`];
+    if (after) {
+      args.push("-f", `after=${after}`);
+    }
+    const search = ghJson(args)?.data?.search;
+    if (!search) {
+      throw new Error("GitHub GraphQL search returned no data");
+    }
+    ids.push(...(search.nodes ?? []).map((node) => node?.id).filter(Boolean));
+    after = search.pageInfo?.hasNextPage ? search.pageInfo.endCursor : null;
+  } while (after);
+  return ids;
+}
+
+async function graphqlPullRequests(query) {
+  const ids = searchPullRequestIds(query);
+  const batches = [];
+  for (let index = 0; index < ids.length; index += SCAN_BATCH_SIZE) {
+    batches.push(ids.slice(index, index + SCAN_BATCH_SIZE));
+  }
+  const results = new Array(batches.length);
+  let next = 0;
+  async function worker() {
+    while (next < batches.length) {
+      const index = next++;
+      const args = ["api", "graphql", "-f", `query=${SCAN_DETAIL_QUERY}`];
+      for (const id of batches[index]) {
+        args.push("-f", `ids[]=${id}`);
+      }
+      const nodes = (await ghJsonAsync(args))?.data?.nodes;
+      if (!Array.isArray(nodes)) {
+        throw new Error("GitHub GraphQL nodes returned no data");
+      }
+      results[index] = nodes.filter((node) => node?.number != null);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(SCAN_CONCURRENCY, batches.length) }, worker));
+  return results.flat();
+}
+
+function restUser(actor) {
+  if (!actor) {
+    return null;
+  }
+  const bot = actor.__typename === "Bot";
+  return {
+    login: bot ? `${actor.login}[bot]` : actor.login,
+    id: actor.databaseId ?? null,
+    type: bot ? "Bot" : "User",
+  };
+}
+
+const MERGEABLE = { MERGEABLE: true, CONFLICTING: false };
+
+// Builds the same status object as inspect() from one GraphQL search node, or
+// returns null when a nested connection was truncated and REST must be used.
+export function statusFromGraphql(node) {
+  const owner = node.repository.owner.login;
+  const repo = node.repository.name;
+  const number = node.number;
+  const head = node.headRefOid;
+  const pr = {
+    state: (node.state ?? "").toLowerCase(),
+    draft: Boolean(node.isDraft),
+    user: restUser(node.author),
+    head: { sha: head },
+    base: { ref: node.baseRefName },
+    mergeable: MERGEABLE[node.mergeable] ?? null,
+    mergeable_state: node.mergeStateStatus ? node.mergeStateStatus.toLowerCase() : undefined,
+  };
+  const status = { owner, repo, number, target: `${owner}/${repo}#${number}`, pr, head };
+  const defaultBranch = node.repository.defaultBranchRef?.name;
+  const baseReason = nonDefaultBaseReason(pr, defaultBranch);
+  if (baseReason) {
+    return {
+      ...status,
+      checks: { state: "skipped", failed: [], pending: [] },
+      review: { state: "skipped" },
+      blockingFindings: 0,
+      state: "waiting",
+      reasons: [baseReason],
+    };
+  }
+  const contexts = node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts;
+  const threads = node.reviewThreads;
+  if (
+    contexts?.pageInfo?.hasNextPage ||
+    node.comments?.pageInfo?.hasNextPage ||
+    threads?.pageInfo?.hasNextPage ||
+    (threads?.nodes ?? []).some((thread) => thread?.comments?.pageInfo?.hasNextPage)
+  ) {
+    return null;
+  }
+  const runs = [];
+  const statuses = [];
+  for (const context of contexts?.nodes ?? []) {
+    if (context.__typename === "CheckRun") {
+      runs.push({ name: context.name, status: context.status, conclusion: context.conclusion });
+    } else if (context.__typename === "StatusContext") {
+      statuses.push({ context: context.context, state: context.state });
+    }
+  }
+  const renovate = isRenovate(pr);
+  const issueComments = renovate
+    ? []
+    : (node.comments?.nodes ?? []).map((comment) => ({
+        user: restUser(comment.author),
+        body: comment.body,
+        created_at: comment.createdAt,
+        updated_at: comment.updatedAt,
+      }));
+  const reviewComments = (threads?.nodes ?? []).flatMap((thread) =>
+    (thread?.comments?.nodes ?? []).map((comment) => ({
+      id: comment.databaseId,
+      in_reply_to_id: comment.replyTo?.databaseId ?? null,
+      user: restUser(comment.author),
+      author_association: comment.authorAssociation,
+      body: comment.body,
+    })),
+  );
+  const checks = checkState(runs, statuses);
+  const review = renovate ? { state: "skipped" } : codexReview(issueComments, head);
+  const blockingFindings = unansweredBlockingCodexFindings(reviewComments);
+  return {
+    ...status,
+    checks,
+    review,
+    blockingFindings,
+    ...classify({ pr, checks, blockingFindings, defaultBranch }),
+  };
 }
 
 function nonDefaultBaseReason(pr, defaultBranch) {
   const base = pr.base?.ref;
-  if (!base || !defaultBranch || base === defaultBranch) return null;
+  if (!base || !defaultBranch || base === defaultBranch) {
+    return null;
+  }
   return `base ${base} is not default branch ${defaultBranch}`;
 }
 
@@ -104,7 +305,9 @@ export function codexReview(issueComments, head) {
       /codex-pull-request-review-summary|Codex Review Summary/i.test(comment.body ?? ""),
     )
     .sort((a, b) => time(b) - time(a))[0];
-  if (!summary) return { state: "absent" };
+  if (!summary) {
+    return { state: "absent" };
+  }
 
   const row = (summary.body ?? "")
     .split("\n")
@@ -115,8 +318,12 @@ export function codexReview(issueComments, head) {
   }
 
   const commit = row.match(/`([0-9a-f]{7,40})`/i)?.[1]?.toLowerCase();
-  if (!commit) return { state: "unknown" };
-  if (!head.toLowerCase().startsWith(commit)) return { state: "stale", commit };
+  if (!commit) {
+    return { state: "unknown" };
+  }
+  if (!head.toLowerCase().startsWith(commit)) {
+    return { state: "stale", commit };
+  }
   return { state: "complete", commit };
 }
 
@@ -128,7 +335,9 @@ function isHighPriorityCodexFinding(comment) {
 export function unansweredBlockingCodexFindings(comments) {
   const replies = new Map();
   for (const comment of comments) {
-    if (comment.in_reply_to_id == null) continue;
+    if (comment.in_reply_to_id == null) {
+      continue;
+    }
     replies.set(comment.in_reply_to_id, [...(replies.get(comment.in_reply_to_id) ?? []), comment]);
   }
   return comments.filter(
@@ -147,14 +356,20 @@ export function checkState(checkRuns, statuses) {
   const pending = [];
   for (const check of checkRuns) {
     const name = check.name ?? "unnamed check";
-    if ((check.status ?? "").toLowerCase() !== "completed") pending.push(name);
-    else if (!PASS.has((check.conclusion ?? "").toLowerCase())) failed.push(name);
+    if ((check.status ?? "").toLowerCase() !== "completed") {
+      pending.push(name);
+    } else if (!PASS.has((check.conclusion ?? "").toLowerCase())) {
+      failed.push(name);
+    }
   }
   for (const status of statuses) {
     const name = status.context ?? "unnamed status";
     const state = (status.state ?? "").toLowerCase();
-    if (["failure", "error"].includes(state)) failed.push(name);
-    else if (state !== "success") pending.push(name);
+    if (["failure", "error"].includes(state)) {
+      failed.push(name);
+    } else if (state !== "success") {
+      pending.push(name);
+    }
   }
   return failed.length
     ? { state: "failed", failed, pending }
@@ -168,7 +383,9 @@ function latestStatuses(statusPages) {
   for (const page of statusPages) {
     for (const status of page?.statuses ?? []) {
       const old = latest.get(status.context);
-      if (!old || time(status) > time(old)) latest.set(status.context, status);
+      if (!old || time(status) > time(old)) {
+        latest.set(status.context, status);
+      }
     }
   }
   return [...latest.values()];
@@ -176,7 +393,9 @@ function latestStatuses(statusPages) {
 
 export function classify({ pr, checks, blockingFindings, defaultBranch }) {
   const baseReason = nonDefaultBaseReason(pr, defaultBranch);
-  if (baseReason) return { state: "waiting", reasons: [baseReason] };
+  if (baseReason) {
+    return { state: "waiting", reasons: [baseReason] };
+  }
 
   const reasons = [];
   let state = "ready";
@@ -188,7 +407,9 @@ export function classify({ pr, checks, blockingFindings, defaultBranch }) {
     state = "broken";
     reasons.push("merge conflict");
   } else if (pr.mergeable !== true || pr.mergeable_state !== "clean") {
-    if (state !== "broken") state = "waiting";
+    if (state !== "broken") {
+      state = "waiting";
+    }
     reasons.push(`mergeability ${pr.mergeable_state ?? "unknown"}`);
   }
   if (checks.state === "failed") {
@@ -278,18 +499,12 @@ function compact(status) {
   };
 }
 
-export function scan(owner = DEFAULT_OWNER) {
-  const repositories = new Map();
+export async function scan(owner = DEFAULT_OWNER, repo = null) {
   const groups = { ready: [], broken: [], waiting: [] };
-  for (const item of openPullRequests(owner)) {
-    const { owner: repoOwner, repo } = searchRepository(item);
-    const fullName = `${repoOwner}/${repo}`;
-    let repository = repositories.get(fullName);
-    if (!repository) {
-      repository = api(`repos/${fullName}`);
-      repositories.set(fullName, repository);
-    }
-    const status = inspect(`${fullName}#${item.number}`, repository);
+  for (const node of await graphqlPullRequests(scanQuery(owner, repo))) {
+    const status =
+      statusFromGraphql(node) ??
+      inspect(`${node.repository.owner.login}/${node.repository.name}#${node.number}`);
     groups[status.state].push(compact(status));
   }
   return {
@@ -305,9 +520,15 @@ export function scan(owner = DEFAULT_OWNER) {
 
 export function selectMergeMethod(repository, rules = [], protection = null) {
   let allowed = new Set();
-  if (repository.allow_merge_commit) allowed.add("merge");
-  if (repository.allow_squash_merge) allowed.add("squash");
-  if (repository.allow_rebase_merge) allowed.add("rebase");
+  if (repository.allow_merge_commit) {
+    allowed.add("merge");
+  }
+  if (repository.allow_squash_merge) {
+    allowed.add("squash");
+  }
+  if (repository.allow_rebase_merge) {
+    allowed.add("rebase");
+  }
 
   if (protection?.required_linear_history?.enabled) {
     allowed.delete("merge");
@@ -324,7 +545,9 @@ export function selectMergeMethod(repository, rules = [], protection = null) {
   }
 
   for (const method of ["merge", "squash", "rebase"]) {
-    if (allowed.has(method)) return `--${method}`;
+    if (allowed.has(method)) {
+      return `--${method}`;
+    }
   }
   throw new Error("repository and target-branch rules allow no supported PR merge method");
 }
@@ -379,17 +602,26 @@ function merge(target) {
   );
 }
 
+const USAGE =
+  "usage: workctl scan [repo|owner/repo] | workctl <pr|merge> <repo#number|owner/repo#number>";
+
 export function main(argv = process.argv.slice(2)) {
   const [command, target, ...extra] = argv;
   if (command === "scan") {
-    if (target || extra.length) {
-      throw new Error("usage: workctl scan | workctl <pr|merge> <repo#number|owner/repo#number>");
+    if (extra.length || target?.startsWith("-")) {
+      throw new Error(USAGE);
     }
-    process.stdout.write(`${JSON.stringify(scan())}\n`);
-    return;
+    // Async; errors are reported here so synchronous callers keep JSON errors.
+    return scan(DEFAULT_OWNER, target ?? null).then(
+      (result) => process.stdout.write(`${JSON.stringify(result)}\n`),
+      (error) => {
+        process.stderr.write(`${JSON.stringify({ error: error.message })}\n`);
+        process.exitCode = 1;
+      },
+    );
   }
   if (extra.length || !target || !["pr", "merge"].includes(command)) {
-    throw new Error("usage: workctl scan | workctl <pr|merge> <repo#number|owner/repo#number>");
+    throw new Error(USAGE);
   }
   if (command === "pr") {
     process.stdout.write(`${JSON.stringify(compact(inspect(target)))}\n`);

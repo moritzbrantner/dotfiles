@@ -116,7 +116,7 @@ done
 ln -sfn "$PWD/skills/work-loop/workctl.mjs" ~/.local/share/coding-agent/workctl.mjs
 ```
 
-Run the linked helper with `node ~/.local/share/coding-agent/workctl.mjs scan` for the global PR backlog or `node ~/.local/share/coding-agent/workctl.mjs pr dotfiles#15` for one PR.
+Run the linked helper with `node ~/.local/share/coding-agent/workctl.mjs scan` for the global PR backlog (or `scan <repo>` for one repository) or `node ~/.local/share/coding-agent/workctl.mjs pr dotfiles#15` for one PR.
 The helper requires Node.js 22.18+ on the 22.x line or Node.js 24.2+ on newer lines for native
 ESM entry-point detection (`import.meta.main`). Symlink invocation needs no launcher. Importing
 the module keeps the exported helpers available without running the CLI.
