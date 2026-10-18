@@ -24,5 +24,5 @@ jobs:
       - name: Install configuration validators
         run: bun install --global eslint@9.39.4 oxlint@1.80.0 oxfmt@0.54.0
       - name: Run canonical checks in an isolated process namespace
-        # Disk safety tests inspect /proc and must not observe runner service processes.
-        run: sudo env "PATH=$PATH" unshare --pid --fork --mount-proc node scripts/check.mjs
+        # Isolate /proc while retaining the runner UID and unprivileged ptrace semantics.
+        run: sudo env "PATH=$PATH" unshare --pid --fork --mount-proc --setgid "$(id -g)" --setuid "$(id -u)" node scripts/check.mjs
