@@ -608,7 +608,7 @@ const USAGE =
 export function main(argv = process.argv.slice(2)) {
   const [command, target, ...extra] = argv;
   if (command === "scan") {
-    if (extra.length || target?.startsWith("-")) {
+    if (extra.length || (target !== undefined && !/^(?:\w[\w.-]*\/)?[\w.][\w.-]*$/.test(target))) {
       throw new Error(USAGE);
     }
     // Async; errors are reported here so synchronous callers keep JSON errors.
