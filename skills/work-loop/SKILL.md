@@ -17,7 +17,7 @@ Use `ask:github` by default, or `ask:live` when requested. Follow [owner questio
 
 ## Loop
 
-1. **Finish in-scope work first.** Inspect the branch and uncommitted changes; resume identifiable work or an existing PR without overwriting user edits. Use `workctl scan` (bounded repository queries if unavailable): repair `broken`, leave `waiting`, merge `ready` after checking current head, mergeability, actual diff and required checks. A draft is unfinished; ready is a merge candidate. Never merge a stacked PR into another feature branch.
+1. **Finish in-scope work first.** Inspect the branch and uncommitted changes; resume identifiable work or an existing PR without overwriting user edits. Use `workctl scan <repo>` in a repository-scoped session, global `workctl scan` otherwise (bounded repository queries if unavailable); a scan is an observation, so inspect the PR freshly before merging: repair `broken`, leave `waiting`, merge `ready` after checking current head, mergeability, actual diff and required checks. A draft is unfinished; ready is a merge candidate. Never merge a stacked PR into another feature branch.
 
 2. **Select an issue.** Honor the owner's repository, journey and stop scope. Otherwise choose the oldest eligible open issue by creation time, repository name and number. Exclude bot/meta issues, active closing PRs, real `needs-decision` blockers and open native dependencies. Ignore product priorities, roadmap phases, perceived scarcity and unrelated Atlas Questions. At the normal scan, reconcile already captured owner answers/digests through the shared protocol; do not leave answered issues blocked.
 

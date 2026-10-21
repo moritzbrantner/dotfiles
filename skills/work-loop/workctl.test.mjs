@@ -11,7 +11,9 @@ import {
   classify,
   codexReview,
   mergePolicy,
+  main,
   parseTarget,
+  scanQuery,
   selectMergeMethod,
   unansweredBlockingCodexFindings,
 } from "./workctl.mjs";
@@ -335,6 +337,21 @@ test("merge queue keeps the head branch", () => {
     ),
     { method: "--merge", deleteBranch: false },
   );
+});
+
+test("scan can be scoped to one repository", () => {
+  assert.equal(scanQuery("o"), "is:pr is:open user:o sort:updated-desc");
+  assert.equal(scanQuery("o", "r"), "is:pr is:open repo:o/r sort:updated-desc");
+  assert.equal(scanQuery("o", "x/r"), "is:pr is:open repo:x/r sort:updated-desc");
+  for (const argv of [
+    ["scan", "--repo"],
+    ["scan", "a/b/c"],
+    ["scan", "r#1"],
+    ["scan", ""],
+    ["scan", "a", "b"],
+  ]) {
+    assert.throws(() => main(argv), /usage: workctl scan/);
+  }
 });
 
 test("scan groups open PRs and leaves stacked PRs waiting without inspecting their gates", () => {
