@@ -12,7 +12,9 @@ import {
   codexReview,
   mergePolicy,
   main,
+  markdownSections,
   parseTarget,
+  renderIssue,
   scanQuery,
   selectMergeMethod,
   unansweredBlockingCodexFindings,
@@ -85,6 +87,64 @@ test("targets", () => {
     repo: "y",
     number: 12,
   });
+  assert.deepEqual(parseTarget("https://github.com/x/y/issues/7"), {
+    owner: "x",
+    repo: "y",
+    number: 7,
+  });
+});
+
+function issueFixture(overrides = {}) {
+  return {
+    title: "Ship it",
+    state: "OPEN",
+    stateReason: null,
+    labels: { nodes: [{ name: "needs-decision" }] },
+    blockedBy: { nodes: [{ number: 3, state: "OPEN", repository: { nameWithOwner: "x/dep" } }] },
+    closedByPullRequestsReferences: { nodes: [{ number: 9, state: "OPEN" }] },
+    body: "Intro\n<!-- hidden -->\n<details><summary>Log</summary>\n\nline\nline\n</details>\n",
+    comments: {
+      totalCount: 3,
+      nodes: [
+        { author: { login: "a" }, createdAt: "2026-10-01T10:00:00Z", isMinimized: false, body: "old" },
+        { author: { login: "b" }, createdAt: "2026-10-02T10:00:00Z", isMinimized: true, body: "spam" },
+        { author: null, createdAt: "2026-10-03T10:00:00Z", isMinimized: false, body: "new" },
+      ],
+    },
+    ...overrides,
+  };
+}
+
+test("issue view condenses markup, hides minimized comments and lists dependencies", () => {
+  const text = renderIssue("x/y#1", issueFixture());
+  assert.match(text, /^x\/y#1 OPEN: Ship it\n/);
+  assert.match(text, /labels: needs-decision \| blocked by: x\/dep#3 OPEN \| closing PRs: #9 OPEN/);
+  assert.match(text, /\[Log: 5 lines hidden, --full shows them\]/);
+  assert.doesNotMatch(text, /hidden -->|spam/);
+  assert.match(text, /--- 2 comments \(1 minimized hidden\)/);
+  assert.match(text, /@ghost 2026-10-03 10:00:\nnew/);
+  assert.match(renderIssue("x/y#1", issueFixture(), { full: true }), /<details>/);
+});
+
+test("issue view --since shows only newer comments without the body", () => {
+  const text = renderIssue("x/y#1", issueFixture(), { since: "2026-10-02T00:00:00Z" });
+  assert.doesNotMatch(text, /Intro|old/);
+  assert.match(text, /--- 1 comments \(1 minimized hidden, 1 before 2026-10-02T00:00:00Z hidden\)/);
+});
+
+test("long issue bodies print an outline and sections on request", () => {
+  const body = `Preface\n\n## Alpha\n${"aaaa\n".repeat(3000)}### Alpha detail\nx\n## Beta\nbeta text\n`;
+  const outline = renderIssue("x/y#1", issueFixture({ body }));
+  assert.match(outline, /outline below/);
+  assert.match(outline, /Preface\n\n {2}Alpha \(3003 lines\)\n {4}Alpha detail \(2 lines\)\n {2}Beta \(2 lines\)/);
+  assert.doesNotMatch(outline, /beta text/);
+  const section = renderIssue("x/y#1", issueFixture({ body }), { sections: ["beta"] });
+  assert.match(section, /## Beta\nbeta text/);
+  assert.doesNotMatch(section, /Alpha/);
+  assert.deepEqual(
+    markdownSections("```\n# not a heading\n```\n# Real").map((s) => s.title),
+    ["Real"],
+  );
 });
 
 test("CI states", () => {

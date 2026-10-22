@@ -10,13 +10,13 @@ const PASS = new Set(["success", "skipped", "neutral"]);
 const TRUSTED_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 
 export function parseTarget(value) {
-  const url = value.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/);
+  const url = value.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/(?:pull|issues)\/(\d+)\/?$/);
   if (url) {
     return { owner: url[1], repo: url[2], number: Number(url[3]) };
   }
   const short = value.match(/^(?:(?<owner>[^/#]+)\/)?(?<repo>[^/#]+)#(?<number>\d+)$/);
   if (!short) {
-    throw new Error(`invalid PR target: ${value}`);
+    throw new Error(`invalid target: ${value}`);
   }
   return {
     owner: short.groups.owner ?? DEFAULT_OWNER,
@@ -602,8 +602,129 @@ function merge(target) {
   );
 }
 
+const ISSUE_QUERY = `query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    issue(number: $number) {
+      title state stateReason
+      labels(first: 50) { nodes { name } }
+      blockedBy(first: 50) { nodes { number state repository { nameWithOwner } } }
+      closedByPullRequestsReferences(first: 20, includeClosedPrs: true) { nodes { number state } }
+      body
+      comments(last: 100) { totalCount nodes { author { login } createdAt isMinimized body } }
+    }
+  }
+}`;
+
+// Shrinks issue Markdown for agents: drops HTML comments and, unless full, collapses <details>.
+export function condenseMarkdown(text, full = false) {
+  let result = (text ?? "").replace(/\r\n/g, "\n").replace(/<!--[\s\S]*?-->/g, "");
+  if (!full) {
+    result = result.replace(/<details[^>]*>([\s\S]*?)<\/details>/gi, (block, inner) => {
+      const summary = inner.match(/<summary[^>]*>([\s\S]*?)<\/summary>/i)?.[1].trim() || "details";
+      return `[${summary}: ${block.split("\n").length} lines hidden, --full shows them]`;
+    });
+  }
+  return result.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+// Bodies above this size print as a heading outline unless --full or --section asks for text.
+const OUTLINE_THRESHOLD = 8000;
+
+export function markdownSections(text) {
+  const lines = text.split("\n");
+  const sections = [];
+  let fence = false;
+  lines.forEach((line, index) => {
+    if (/^\s*(```|~~~)/.test(line)) fence = !fence;
+    const heading = !fence && line.match(/^(#{1,6})\s+(.*)$/);
+    if (heading) sections.push({ level: heading[1].length, title: heading[2].trim(), start: index });
+  });
+  return sections.map((section, index) => {
+    const next = sections.slice(index + 1).find((later) => later.level <= section.level);
+    const end = next ? next.start : lines.length;
+    return { ...section, text: lines.slice(section.start, end).join("\n").trim(), lines: end - section.start };
+  });
+}
+
+function renderBody(body, { full, sections }) {
+  if (sections.length) {
+    const wanted = sections.map((section) => section.toLowerCase());
+    const matches = markdownSections(body).filter((section) =>
+      wanted.some((needle) => section.title.toLowerCase().includes(needle)),
+    );
+    return matches.length
+      ? matches.map((section) => section.text).join("\n\n")
+      : `(no heading matches ${sections.join(", ")}; drop --section to see the outline)`;
+  }
+  if (full || body.length <= OUTLINE_THRESHOLD) return body || "(no body)";
+  const outline = markdownSections(body).map(
+    (section) => `${"  ".repeat(section.level - 1)}${section.title} (${section.lines} lines)`,
+  );
+  const preface = body.split(/\n#{1,6}\s/, 1)[0].trim();
+  return [
+    `[body is ${body.length} chars; outline below. --section <heading text> prints a section, --full prints all]`,
+    ...(preface ? ["", preface.length > 1500 ? `${preface.slice(0, 1500)}…` : preface] : []),
+    "",
+    ...outline,
+  ].join("\n");
+}
+
+export function renderIssue(target, issue, { full = false, since = null, sections = [] } = {}) {
+  const state = issue.stateReason ? `${issue.state} (${issue.stateReason.toLowerCase()})` : issue.state;
+  const facts = [
+    issue.labels.nodes.length && `labels: ${issue.labels.nodes.map((label) => label.name).join(", ")}`,
+    issue.blockedBy.nodes.length &&
+      `blocked by: ${issue.blockedBy.nodes
+        .map((dep) => `${dep.repository.nameWithOwner}#${dep.number} ${dep.state}`)
+        .join(", ")}`,
+    issue.closedByPullRequestsReferences.nodes.length &&
+      `closing PRs: ${issue.closedByPullRequestsReferences.nodes
+        .map((pr) => `#${pr.number} ${pr.state}`)
+        .join(", ")}`,
+  ].filter(Boolean);
+  const all = issue.comments.nodes;
+  const visible = all.filter((comment) => !comment.isMinimized);
+  const shown = since ? visible.filter((comment) => comment.createdAt > since) : visible;
+  const notes = [
+    issue.comments.totalCount > all.length && `${issue.comments.totalCount - all.length} older not fetched`,
+    all.length > visible.length && `${all.length - visible.length} minimized hidden`,
+    since && `${visible.length - shown.length} before ${since} hidden`,
+  ].filter(Boolean);
+  const lines = [`${target} ${state}: ${issue.title}`];
+  if (facts.length) lines.push(facts.join(" | "));
+  if (!since || sections.length) lines.push("", renderBody(condenseMarkdown(issue.body, full), { full, sections }));
+  lines.push("", `--- ${shown.length} comments${notes.length ? ` (${notes.join(", ")})` : ""}`);
+  for (const comment of shown) {
+    lines.push(
+      "",
+      `@${comment.author?.login ?? "ghost"} ${comment.createdAt.slice(0, 16).replace("T", " ")}:`,
+      condenseMarkdown(comment.body, full),
+    );
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+function issue(target, options) {
+  const { owner, repo, number } = parseTarget(target);
+  const data = ghJson([
+    "api",
+    "graphql",
+    "-f",
+    `query=${ISSUE_QUERY}`,
+    "-F",
+    `owner=${owner}`,
+    "-F",
+    `repo=${repo}`,
+    "-F",
+    `number=${number}`,
+  ]);
+  const found = data?.data?.repository?.issue;
+  if (!found) throw new Error(`issue not found: ${owner}/${repo}#${number}`);
+  process.stdout.write(renderIssue(`${owner}/${repo}#${number}`, found, options));
+}
+
 const USAGE =
-  "usage: workctl scan [repo|owner/repo] | workctl <pr|merge> <repo#number|owner/repo#number>";
+  "usage: workctl scan [repo|owner/repo] | workctl <pr|merge> <repo#number|owner/repo#number> | workctl issue <repo#number> [--full] [--section <heading text>]... [--since <ISO time>]";
 
 export function main(argv = process.argv.slice(2)) {
   const [command, target, ...extra] = argv;
@@ -619,6 +740,18 @@ export function main(argv = process.argv.slice(2)) {
         process.exitCode = 1;
       },
     );
+  }
+  if (command === "issue") {
+    const options = { full: false, since: null, sections: [] };
+    for (let index = 0; index < extra.length; index += 1) {
+      if (extra[index] === "--full") options.full = true;
+      else if (extra[index] === "--since" && extra[index + 1]) options.since = extra[(index += 1)];
+      else if (extra[index] === "--section" && extra[index + 1])
+        options.sections.push(extra[(index += 1)]);
+      else throw new Error(USAGE);
+    }
+    if (!target) throw new Error(USAGE);
+    return issue(target, options);
   }
   if (extra.length || !target || !["pr", "merge"].includes(command)) {
     throw new Error(USAGE);
