@@ -15,13 +15,17 @@ Use current merged personal skills; refresh their source once if needed, preserv
 
 Use `ask:github` by default, or `ask:live` when requested. Follow [owner questions and incorporation](../../docs/owner-questions.md), including end-of-conversation capture. Switching ask mode does not restart the run.
 
+## Workers
+
+**One fresh worker per issue.** The session running the loop coordinates: it scans, selects, merges and asks owner questions, but does not read or edit implementation code itself. For each selected issue it starts a new implementation worker with a short brief: repository, issue, branch, ask mode and any owner answers already given. The worker does steps 3–5 and finishes by returning the PR URL, or else its blockers and owner questions. Never give a worker a second issue; context carried over from earlier issues only costs tokens. Repairing a `broken` PR for the same issue may reuse that issue's worker; otherwise start a fresh one from the PR. Keep at most one active worker per repository.
+
 ## Loop
 
 1. **Finish in-scope work first.** Inspect the branch and uncommitted changes; resume identifiable work or an existing PR without overwriting user edits. Use `workctl scan <repo>` in a repository-scoped session, global `workctl scan` otherwise (bounded repository queries if unavailable); a scan is an observation, so inspect the PR freshly before merging: repair `broken`, leave `waiting`, merge `ready` after checking current head, mergeability, actual diff and required checks. A draft is unfinished; ready is a merge candidate. Never merge a stacked PR into another feature branch.
 
 2. **Select an issue.** Honor the owner's repository, journey and stop scope. Otherwise choose the oldest eligible open issue by creation time, repository name and number. Exclude bot/meta issues, active closing PRs, real `needs-decision` blockers and open native dependencies. Ignore product priorities, roadmap phases, perceived scarcity and unrelated Atlas Questions. At the normal scan, reconcile already captured owner answers/digests through the shared protocol; do not leave answered issues blocked.
 
-3. **Prepare before coding.** Using the loaded instruction baseline, the implementing worker examines the issue, comments, relevant workflow/code, approved decisions (scoped `daq` or Markdown) and available inputs. Obtain ordinary prerequisites. Identify remaining owner questions and settle them before affected implementation; later discoveries may require more questions. Approved broad direction does not settle unspecified user-facing behavior. Use `issue-preflight` for scope ambiguity and `steer` for broader direction; no separate preparation agent, document or question quota.
+3. **Prepare before coding.** Using the loaded instruction baseline, the issue's fresh worker examines the issue, comments, relevant workflow/code, approved decisions (scoped `daq` or Markdown) and available inputs. Obtain ordinary prerequisites. Identify remaining owner questions and settle them before affected implementation; later discoveries may require more questions. Approved broad direction does not settle unspecified user-facing behavior. Use `issue-preflight` for scope ambiguity and `steer` for broader direction; no separate preparation agent, document or question quota.
 
 4. **Implement the full approved scope.** Use a task branch in the normal checkout, with **one active implementation writer per repository**. Resume stopped work without simultaneous writers. Choose ordinary technical details and behavior-preserving repairs yourself. Deliver the real integrated user outcome with required inputs. Make a coherent change, then open/update one PR targeting default; no placeholder PR, repeated progress pushes or stacked PRs.
 
