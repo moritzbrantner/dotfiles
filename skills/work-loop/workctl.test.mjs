@@ -83,6 +83,10 @@ test("targets", () => {
     repo: "ui",
     number: 66,
   });
+  for (const repo of ["mmorpg", "arpg", "zoo", "my-farm"]) {
+    assert.equal(parseTarget(`${repo}#454`).owner, "moenarch-games");
+  }
+  assert.equal(parseTarget("moritzbrantner/zoo#1").owner, "moritzbrantner");
   assert.deepEqual(parseTarget("x/y#12"), { owner: "x", repo: "y", number: 12 });
   assert.deepEqual(parseTarget("https://github.com/x/y/pull/12"), {
     owner: "x",
@@ -410,13 +414,21 @@ test("merge queue keeps the head branch", () => {
       },
       [{ type: "merge_queue" }],
     ),
-    { method: "--merge", deleteBranch: false },
+    { method: "--merge", deleteBranch: false, queue: true },
   );
 });
 
 test("scan can be scoped to one repository", () => {
   assert.equal(scanQuery("o"), "is:pr is:open user:o sort:updated-desc");
-  assert.equal(scanQuery("o", "r"), "is:pr is:open repo:o/r sort:updated-desc");
+  assert.equal(
+    scanQuery(),
+    "is:pr is:open user:moritzbrantner user:moenarch-games sort:updated-desc",
+  );
+  assert.equal(scanQuery(undefined, "r"), "is:pr is:open repo:moritzbrantner/r sort:updated-desc");
+  assert.equal(
+    scanQuery(undefined, "zoo"),
+    "is:pr is:open repo:moenarch-games/zoo sort:updated-desc",
+  );
   assert.equal(scanQuery("o", "x/r"), "is:pr is:open repo:x/r sort:updated-desc");
   for (const argv of [
     ["scan", "--repo"],
@@ -443,7 +455,7 @@ if (endpoint === "graphql") {
   const query = fields.find((field) => field.startsWith("query=")) ?? "";
   if (query.includes("search(")) {
     const q = fields.find((field) => field.startsWith("q="));
-    if (q !== "q=is:pr is:open user:moritzbrantner sort:updated-desc") throw new Error(q);
+    if (q !== "q=is:pr is:open user:moritzbrantner user:moenarch-games sort:updated-desc") throw new Error(q);
     value = fixture.graphqlSearch;
   } else {
     const ids = fields.filter((field) => field.startsWith("ids[]=")).map((field) => field.slice(6));
@@ -616,7 +628,7 @@ test("wait parses targets and rejects malformed input", () => {
   assert.deepEqual(parseWait(["pr", "zoo#12", "--timeout", "90"]), {
     kind: "pr",
     timeoutMs: 90_000,
-    owner: "moritzbrantner",
+    owner: "moenarch-games",
     repo: "zoo",
     number: 12,
     target: "zoo#12",
@@ -650,7 +662,7 @@ test("wait pr blocks on pending required checks, then reports red with exit 1", 
     "checks",
     "7",
     "-R",
-    "moritzbrantner/zoo",
+    "moenarch-games/zoo",
     "--required",
     "--json",
     "name,bucket",
@@ -689,7 +701,7 @@ test("wait run follows gh run view until completed", async () => {
   const result = await wait(parseWait(["run", "zoo", "99"]), { run: gh.run, ...clock() });
   assert.equal(result.exitCode, 0);
   assert.equal(result.conclusion, "success");
-  assert.deepEqual(gh.calls[0].slice(0, 5), ["run", "view", "99", "-R", "moritzbrantner/zoo"]);
+  assert.deepEqual(gh.calls[0].slice(0, 5), ["run", "view", "99", "-R", "moenarch-games/zoo"]);
 });
 
 test("wait pid and file poll local state", async () => {
