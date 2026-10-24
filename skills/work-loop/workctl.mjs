@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { execFile, spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
 const DEFAULT_OWNER = "moritzbrantner";
 const CODEX_BOT_ID = 199175422;
@@ -637,12 +638,17 @@ export function markdownSections(text) {
   lines.forEach((line, index) => {
     if (/^\s*(```|~~~)/.test(line)) fence = !fence;
     const heading = !fence && line.match(/^(#{1,6})\s+(.*)$/);
-    if (heading) sections.push({ level: heading[1].length, title: heading[2].trim(), start: index });
+    if (heading)
+      sections.push({ level: heading[1].length, title: heading[2].trim(), start: index });
   });
   return sections.map((section, index) => {
     const next = sections.slice(index + 1).find((later) => later.level <= section.level);
     const end = next ? next.start : lines.length;
-    return { ...section, text: lines.slice(section.start, end).join("\n").trim(), lines: end - section.start };
+    return {
+      ...section,
+      text: lines.slice(section.start, end).join("\n").trim(),
+      lines: end - section.start,
+    };
   });
 }
 
@@ -670,9 +676,12 @@ function renderBody(body, { full, sections }) {
 }
 
 export function renderIssue(target, issue, { full = false, since = null, sections = [] } = {}) {
-  const state = issue.stateReason ? `${issue.state} (${issue.stateReason.toLowerCase()})` : issue.state;
+  const state = issue.stateReason
+    ? `${issue.state} (${issue.stateReason.toLowerCase()})`
+    : issue.state;
   const facts = [
-    issue.labels.nodes.length && `labels: ${issue.labels.nodes.map((label) => label.name).join(", ")}`,
+    issue.labels.nodes.length &&
+      `labels: ${issue.labels.nodes.map((label) => label.name).join(", ")}`,
     issue.blockedBy.nodes.length &&
       `blocked by: ${issue.blockedBy.nodes
         .map((dep) => `${dep.repository.nameWithOwner}#${dep.number} ${dep.state}`)
@@ -686,13 +695,15 @@ export function renderIssue(target, issue, { full = false, since = null, section
   const visible = all.filter((comment) => !comment.isMinimized);
   const shown = since ? visible.filter((comment) => comment.createdAt > since) : visible;
   const notes = [
-    issue.comments.totalCount > all.length && `${issue.comments.totalCount - all.length} older not fetched`,
+    issue.comments.totalCount > all.length &&
+      `${issue.comments.totalCount - all.length} older not fetched`,
     all.length > visible.length && `${all.length - visible.length} minimized hidden`,
     since && `${visible.length - shown.length} before ${since} hidden`,
   ].filter(Boolean);
   const lines = [`${target} ${state}: ${issue.title}`];
   if (facts.length) lines.push(facts.join(" | "));
-  if (!since || sections.length) lines.push("", renderBody(condenseMarkdown(issue.body, full), { full, sections }));
+  if (!since || sections.length)
+    lines.push("", renderBody(condenseMarkdown(issue.body, full), { full, sections }));
   lines.push("", `--- ${shown.length} comments${notes.length ? ` (${notes.join(", ")})` : ""}`);
   for (const comment of shown) {
     lines.push(
@@ -723,8 +734,183 @@ function issue(target, options) {
   process.stdout.write(renderIssue(`${owner}/${repo}#${number}`, found, options));
 }
 
-const USAGE =
-  "usage: workctl scan [repo|owner/repo] | workctl <pr|merge> <repo#number|owner/repo#number> | workctl issue <repo#number> [--full] [--section <heading text>]... [--since <ISO time>]";
+const WAIT_USAGE =
+  "workctl wait pr <repo#number> | wait run <repo> <run-id> | wait pid <pid> | wait file <path> [--contains <text>] (all take [--timeout <seconds>], default 3600)";
+
+function ghRaw(args) {
+  const result = spawnSync(process.env.WORKCTL_GH ?? "gh", args, {
+    encoding: "utf8",
+    maxBuffer: 20 * 1024 * 1024,
+  });
+  if (result.error) throw result.error;
+  return { status: result.status, stdout: result.stdout.trim(), stderr: result.stderr.trim() };
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Checks of a PR as `{ name: bucket }`: required checks, or all checks when none are required. */
+function prChecks(owner, repo, number, run = ghRaw) {
+  for (const extra of [["--required"], []]) {
+    const result = run([
+      "pr",
+      "checks",
+      String(number),
+      "-R",
+      `${owner}/${repo}`,
+      ...extra,
+      "--json",
+      "name,bucket",
+    ]);
+    if (result.stdout.startsWith("[")) {
+      const checks = JSON.parse(result.stdout);
+      if (checks.length) return Object.fromEntries(checks.map((c) => [c.name, c.bucket]));
+    } else if (result.status !== 0 && !/no (required )?checks reported/i.test(result.stderr)) {
+      throw new Error(result.stderr || `gh pr checks exited ${result.status}`);
+    }
+  }
+  return {};
+}
+
+function processAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error.code === "EPERM";
+  }
+}
+
+function fileMatches(path, text, read = readFileSync) {
+  try {
+    const content = read(path, "utf8");
+    return text === null || content.includes(text);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * One wait probe: `{ done: false }` while waiting, else `{ done: true, exitCode, ...details }`.
+ * `elapsedMs` lets probes give up on PRs whose checks never appear.
+ */
+export function waitProbe(
+  spec,
+  { run = ghRaw, alive = processAlive, read = readFileSync, elapsedMs = 0 } = {},
+) {
+  if (spec.kind === "pr") {
+    const checks = prChecks(spec.owner, spec.repo, spec.number, run);
+    const buckets = Object.values(checks);
+    if (!buckets.length) {
+      return elapsedMs >= 120_000
+        ? { done: true, exitCode: 0, state: "no-checks", checks }
+        : { done: false };
+    }
+    if (buckets.includes("pending")) return { done: false };
+    const failing = Object.keys(checks).filter((name) => ["fail", "cancel"].includes(checks[name]));
+    return failing.length
+      ? { done: true, exitCode: 1, state: "red", failing, checks }
+      : { done: true, exitCode: 0, state: "green", checks };
+  }
+  if (spec.kind === "run") {
+    const result = run([
+      "run",
+      "view",
+      spec.runId,
+      "-R",
+      `${spec.owner}/${spec.repo}`,
+      "--json",
+      "status,conclusion,name,url",
+    ]);
+    if (result.status !== 0)
+      throw new Error(result.stderr || `gh run view exited ${result.status}`);
+    const view = JSON.parse(result.stdout);
+    if (view.status !== "completed") return { done: false };
+    const green = PASS.has(view.conclusion);
+    return {
+      done: true,
+      exitCode: green ? 0 : 1,
+      state: green ? "green" : "red",
+      conclusion: view.conclusion,
+      name: view.name,
+      url: view.url,
+    };
+  }
+  if (spec.kind === "pid") {
+    return alive(spec.pid) ? { done: false } : { done: true, exitCode: 0, state: "exited" };
+  }
+  return fileMatches(spec.path, spec.contains, read)
+    ? { done: true, exitCode: 0, state: "matched" }
+    : { done: false };
+}
+
+export function parseWait(args) {
+  const [kind, ...rest] = args;
+  const positional = [];
+  let timeout = 3600;
+  let contains = null;
+  for (let index = 0; index < rest.length; index += 1) {
+    if (rest[index] === "--timeout" && rest[index + 1]) timeout = Number(rest[(index += 1)]);
+    else if (rest[index] === "--contains" && rest[index + 1] !== undefined)
+      contains = rest[(index += 1)];
+    else if (rest[index].startsWith("--")) throw new Error(`usage: ${WAIT_USAGE}`);
+    else positional.push(rest[index]);
+  }
+  if (!Number.isFinite(timeout) || timeout <= 0) throw new Error(`usage: ${WAIT_USAGE}`);
+  const base = { kind, timeoutMs: timeout * 1000 };
+  if (kind === "pr" && positional.length === 1) {
+    return { ...base, ...parseTarget(positional[0]), target: positional[0] };
+  }
+  if (kind === "run" && positional.length === 2 && /^\d+$/.test(positional[1])) {
+    const [owner, repo] = positional[0].includes("/")
+      ? positional[0].split("/")
+      : [DEFAULT_OWNER, positional[0]];
+    return { ...base, owner, repo, runId: positional[1], target: `${owner}/${repo}` };
+  }
+  if (kind === "pid" && positional.length === 1 && /^\d+$/.test(positional[0])) {
+    return { ...base, pid: Number(positional[0]), target: positional[0] };
+  }
+  if (kind === "file" && positional.length === 1) {
+    return { ...base, path: positional[0], contains, target: positional[0] };
+  }
+  throw new Error(`usage: ${WAIT_USAGE}`);
+}
+
+/**
+ * Block until the target settles, polling with backoff (GitHub: 5s growing to 60s; local: 1s
+ * growing to 5s). Prints one JSON line; exit code 0 green/done, 1 red, 2 timeout.
+ */
+export async function wait(spec, { now = Date.now, pause = sleep, ...probeDeps } = {}) {
+  const started = now();
+  const remote = spec.kind === "pr" || spec.kind === "run";
+  let delay = remote ? 5000 : 1000;
+  const maxDelay = remote ? 60_000 : 5000;
+  for (;;) {
+    const elapsedMs = now() - started;
+    const probe = waitProbe(spec, { ...probeDeps, elapsedMs });
+    if (probe.done) {
+      const { done: _done, ...result } = probe;
+      return {
+        kind: spec.kind,
+        target: spec.target,
+        ...result,
+        waitedSeconds: Math.round(elapsedMs / 1000),
+      };
+    }
+    if (elapsedMs >= spec.timeoutMs) {
+      return {
+        kind: spec.kind,
+        target: spec.target,
+        exitCode: 2,
+        state: "timeout",
+        waitedSeconds: Math.round(elapsedMs / 1000),
+      };
+    }
+    await pause(Math.min(delay, Math.max(spec.timeoutMs - elapsedMs, 0)));
+    delay = Math.min(Math.round(delay * 1.5), maxDelay);
+  }
+}
+
+const USAGE = `usage: workctl scan [repo|owner/repo] | workctl <pr|merge> <repo#number|owner/repo#number> | workctl issue <repo#number> [--full] [--section <heading text>]... [--since <ISO time>] | ${WAIT_USAGE}`;
 
 export function main(argv = process.argv.slice(2)) {
   const [command, target, ...extra] = argv;
@@ -735,6 +921,19 @@ export function main(argv = process.argv.slice(2)) {
     // Async; errors are reported here so synchronous callers keep JSON errors.
     return scan(DEFAULT_OWNER, target ?? null).then(
       (result) => process.stdout.write(`${JSON.stringify(result)}\n`),
+      (error) => {
+        process.stderr.write(`${JSON.stringify({ error: error.message })}\n`);
+        process.exitCode = 1;
+      },
+    );
+  }
+  if (command === "wait") {
+    const spec = parseWait(argv.slice(1));
+    return wait(spec).then(
+      ({ exitCode, ...result }) => {
+        process.stdout.write(`${JSON.stringify(result)}\n`);
+        process.exitCode = exitCode;
+      },
       (error) => {
         process.stderr.write(`${JSON.stringify({ error: error.message })}\n`);
         process.exitCode = 1;
