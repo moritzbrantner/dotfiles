@@ -6,7 +6,14 @@ import { readFileSync } from "node:fs";
 const DEFAULT_OWNER = "moritzbrantner";
 // Repos that moved to the moenarch-games org; everything else stays under DEFAULT_OWNER.
 const ORG = "moenarch-games";
-const REPO_OWNERS = { mmorpg: ORG, arpg: ORG, zoo: ORG, "my-farm": ORG };
+const REPO_OWNERS = {
+  mmorpg: ORG,
+  arpg: ORG,
+  zoo: ORG,
+  "my-farm": ORG,
+  "battle-royale": ORG,
+  "raid-defense": ORG,
+};
 const SCAN_OWNERS = [DEFAULT_OWNER, ORG];
 
 export function ownerFor(repo) {
