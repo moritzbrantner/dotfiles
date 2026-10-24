@@ -4,6 +4,14 @@ import { execFile, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 const DEFAULT_OWNER = "moritzbrantner";
+// Repos that moved to the moenarch-games org; everything else stays under DEFAULT_OWNER.
+const ORG = "moenarch-games";
+const REPO_OWNERS = { mmorpg: ORG, arpg: ORG, zoo: ORG, "my-farm": ORG };
+const SCAN_OWNERS = [DEFAULT_OWNER, ORG];
+
+export function ownerFor(repo) {
+  return REPO_OWNERS[repo] ?? DEFAULT_OWNER;
+}
 const CODEX_BOT_ID = 199175422;
 const CODEX_BOT_LOGIN = "chatgpt-codex-connector[bot]";
 const RENOVATE_BOT_LOGIN = "renovate[bot]";
@@ -20,7 +28,7 @@ export function parseTarget(value) {
     throw new Error(`invalid target: ${value}`);
   }
   return {
-    owner: short.groups.owner ?? DEFAULT_OWNER,
+    owner: short.groups.owner ?? ownerFor(short.groups.repo),
     repo: short.groups.repo,
     number: Number(short.groups.number),
   };
@@ -121,8 +129,13 @@ const SCAN_DETAIL_QUERY = `query($ids: [ID!]!) {
 }
 fragment actor on Actor { __typename login ... on Bot { databaseId } ... on User { databaseId } }`;
 
-export function scanQuery(owner, repo = null) {
-  const scope = repo ? `repo:${repo.includes("/") ? repo : `${owner}/${repo}`}` : `user:${owner}`;
+export function scanQuery(owners = SCAN_OWNERS, repo = null) {
+  const scope = repo
+    ? `repo:${repo.includes("/") ? repo : `${ownerFor(repo)}/${repo}`}`
+    : [owners]
+        .flat()
+        .map((owner) => `user:${owner}`)
+        .join(" ");
   return `is:pr is:open ${scope} sort:updated-desc`;
 }
 
@@ -500,9 +513,9 @@ function compact(status) {
   };
 }
 
-export async function scan(owner = DEFAULT_OWNER, repo = null) {
+export async function scan(owners = SCAN_OWNERS, repo = null) {
   const groups = { ready: [], broken: [], waiting: [] };
-  for (const node of await graphqlPullRequests(scanQuery(owner, repo))) {
+  for (const node of await graphqlPullRequests(scanQuery(owners, repo))) {
     const status =
       statusFromGraphql(node) ??
       inspect(`${node.repository.owner.login}/${node.repository.name}#${node.number}`);
@@ -554,9 +567,11 @@ export function selectMergeMethod(repository, rules = [], protection = null) {
 }
 
 export function mergePolicy(repository, rules = [], protection = null) {
+  const queue = rules.some((rule) => rule.type === "merge_queue");
   return {
     method: selectMergeMethod(repository, rules, protection),
-    deleteBranch: !rules.some((rule) => rule.type === "merge_queue"),
+    deleteBranch: !queue,
+    queue,
   };
 }
 
@@ -583,7 +598,8 @@ function merge(target) {
     String(status.number),
     "-R",
     `${status.owner}/${status.repo}`,
-    policy.method,
+    // A merge queue sets the method itself; gh then enqueues the PR instead of merging it.
+    ...(policy.queue ? [] : [policy.method]),
     "--match-head-commit",
     status.head,
   ];
@@ -595,10 +611,10 @@ function merge(target) {
   process.stdout.write(
     `${JSON.stringify({
       pr: status.target,
-      state: merged.merged ? "merged" : "waiting",
+      state: merged.merged ? "merged" : policy.queue ? "queued" : "waiting",
       head: status.head,
       merged: Boolean(merged.merged),
-      ...(!merged.merged ? { reason: "merge accepted but not completed" } : {}),
+      ...(!merged.merged && !policy.queue ? { reason: "merge accepted but not completed" } : {}),
     })}\n`,
   );
 }
@@ -863,7 +879,7 @@ export function parseWait(args) {
   if (kind === "run" && positional.length === 2 && /^\d+$/.test(positional[1])) {
     const [owner, repo] = positional[0].includes("/")
       ? positional[0].split("/")
-      : [DEFAULT_OWNER, positional[0]];
+      : [ownerFor(positional[0]), positional[0]];
     return { ...base, owner, repo, runId: positional[1], target: `${owner}/${repo}` };
   }
   if (kind === "pid" && positional.length === 1 && /^\d+$/.test(positional[0])) {
@@ -919,7 +935,7 @@ export function main(argv = process.argv.slice(2)) {
       throw new Error(USAGE);
     }
     // Async; errors are reported here so synchronous callers keep JSON errors.
-    return scan(DEFAULT_OWNER, target ?? null).then(
+    return scan(SCAN_OWNERS, target ?? null).then(
       (result) => process.stdout.write(`${JSON.stringify(result)}\n`),
       (error) => {
         process.stderr.write(`${JSON.stringify({ error: error.message })}\n`);
