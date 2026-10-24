@@ -14,10 +14,12 @@ import {
   main,
   markdownSections,
   parseTarget,
+  parseWait,
   renderIssue,
   scanQuery,
   selectMergeMethod,
   unansweredBlockingCodexFindings,
+  wait,
 } from "./workctl.mjs";
 
 test("CLI entry point follows symlinks while imports remain inert", () => {
@@ -106,8 +108,18 @@ function issueFixture(overrides = {}) {
     comments: {
       totalCount: 3,
       nodes: [
-        { author: { login: "a" }, createdAt: "2026-10-01T10:00:00Z", isMinimized: false, body: "old" },
-        { author: { login: "b" }, createdAt: "2026-10-02T10:00:00Z", isMinimized: true, body: "spam" },
+        {
+          author: { login: "a" },
+          createdAt: "2026-10-01T10:00:00Z",
+          isMinimized: false,
+          body: "old",
+        },
+        {
+          author: { login: "b" },
+          createdAt: "2026-10-02T10:00:00Z",
+          isMinimized: true,
+          body: "spam",
+        },
         { author: null, createdAt: "2026-10-03T10:00:00Z", isMinimized: false, body: "new" },
       ],
     },
@@ -136,7 +148,10 @@ test("long issue bodies print an outline and sections on request", () => {
   const body = `Preface\n\n## Alpha\n${"aaaa\n".repeat(3000)}### Alpha detail\nx\n## Beta\nbeta text\n`;
   const outline = renderIssue("x/y#1", issueFixture({ body }));
   assert.match(outline, /outline below/);
-  assert.match(outline, /Preface\n\n {2}Alpha \(3003 lines\)\n {4}Alpha detail \(2 lines\)\n {2}Beta \(2 lines\)/);
+  assert.match(
+    outline,
+    /Preface\n\n {2}Alpha \(3003 lines\)\n {4}Alpha detail \(2 lines\)\n {2}Beta \(2 lines\)/,
+  );
   assert.doesNotMatch(outline, /beta text/);
   const section = renderIssue("x/y#1", issueFixture({ body }), { sections: ["beta"] });
   assert.match(section, /## Beta\nbeta text/);
@@ -577,4 +592,144 @@ process.stdout.write(JSON.stringify(value));
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+function fakeGh(responses) {
+  const calls = [];
+  return {
+    calls,
+    run: (args) => {
+      calls.push(args);
+      const next = responses.shift();
+      return typeof next === "function" ? next(args) : next;
+    },
+  };
+}
+
+const ok = (value) => ({ status: 0, stdout: JSON.stringify(value), stderr: "" });
+const clock = () => {
+  let time = 0;
+  return { now: () => time, pause: async (ms) => void (time += ms) };
+};
+
+test("wait parses targets and rejects malformed input", () => {
+  assert.deepEqual(parseWait(["pr", "zoo#12", "--timeout", "90"]), {
+    kind: "pr",
+    timeoutMs: 90_000,
+    owner: "moritzbrantner",
+    repo: "zoo",
+    number: 12,
+    target: "zoo#12",
+  });
+  assert.equal(parseWait(["run", "acme/zoo", "123"]).owner, "acme");
+  assert.equal(parseWait(["pid", "42"]).pid, 42);
+  assert.equal(parseWait(["file", "/tmp/x", "--contains", "done"]).contains, "done");
+  for (const bad of [
+    ["pr"],
+    ["pid", "x"],
+    ["run", "zoo", "abc"],
+    ["file", "a", "--timeout", "0"],
+    ["nope", "x"],
+  ]) {
+    assert.throws(() => parseWait(bad), /usage: workctl wait/);
+  }
+});
+
+test("wait pr blocks on pending required checks, then reports red with exit 1", async () => {
+  const gh = fakeGh([
+    ok([{ name: "merge-ready", bucket: "pending" }]),
+    ok([{ name: "merge-ready", bucket: "pending" }]),
+    ok([{ name: "merge-ready", bucket: "fail" }]),
+  ]);
+  const result = await wait(parseWait(["pr", "zoo#7"]), { run: gh.run, ...clock() });
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.state, "red");
+  assert.deepEqual(result.failing, ["merge-ready"]);
+  assert.deepEqual(gh.calls[0], [
+    "pr",
+    "checks",
+    "7",
+    "-R",
+    "moritzbrantner/zoo",
+    "--required",
+    "--json",
+    "name,bucket",
+  ]);
+});
+
+test("wait pr falls back to all checks when none are required and goes green", async () => {
+  const gh = fakeGh([
+    { status: 1, stdout: "", stderr: "no required checks reported on the 'x' branch" },
+    ok([
+      { name: "ci", bucket: "pass" },
+      { name: "lint", bucket: "skipping" },
+    ]),
+  ]);
+  const result = await wait(parseWait(["pr", "zoo#7"]), { run: gh.run, ...clock() });
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.state, "green");
+});
+
+test("wait pr times out with exit 2", async () => {
+  const pending = () => ok([{ name: "ci", bucket: "pending" }]);
+  const gh = { run: pending };
+  const result = await wait(parseWait(["pr", "zoo#7", "--timeout", "30"]), {
+    run: gh.run,
+    ...clock(),
+  });
+  assert.equal(result.exitCode, 2);
+  assert.equal(result.state, "timeout");
+});
+
+test("wait run follows gh run view until completed", async () => {
+  const gh = fakeGh([
+    ok({ status: "in_progress", conclusion: "", name: "CI", url: "u" }),
+    ok({ status: "completed", conclusion: "success", name: "CI", url: "u" }),
+  ]);
+  const result = await wait(parseWait(["run", "zoo", "99"]), { run: gh.run, ...clock() });
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.conclusion, "success");
+  assert.deepEqual(gh.calls[0].slice(0, 5), ["run", "view", "99", "-R", "moritzbrantner/zoo"]);
+});
+
+test("wait pid and file poll local state", async () => {
+  let alive = 2;
+  const pid = await wait(parseWait(["pid", "123"]), { alive: () => alive-- > 0, ...clock() });
+  assert.deepEqual([pid.exitCode, pid.state], [0, "exited"]);
+
+  let content = "building";
+  const read = () => {
+    const current = content;
+    content = "build finished";
+    return current;
+  };
+  const file = await wait(parseWait(["file", "log", "--contains", "finished"]), {
+    read,
+    ...clock(),
+  });
+  assert.deepEqual([file.exitCode, file.state], [0, "matched"]);
+
+  const missing = await wait(parseWait(["file", "log", "--timeout", "3"]), {
+    read: () => {
+      throw new Error("ENOENT");
+    },
+    ...clock(),
+  });
+  assert.equal(missing.exitCode, 2);
+});
+
+test("wait pid exits for a real process without matching itself", () => {
+  const child = spawnSync(process.execPath, ["-e", "1"]);
+  assert.equal(child.status, 0);
+  const source = fileURLToPath(new URL("./workctl.mjs", import.meta.url));
+  const result = spawnSync(
+    process.execPath,
+    [source, "wait", "pid", String(child.pid), "--timeout", "5"],
+    {
+      encoding: "utf8",
+      timeout: 10_000,
+    },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).state, "exited");
 });
