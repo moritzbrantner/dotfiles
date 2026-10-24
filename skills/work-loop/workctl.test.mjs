@@ -83,7 +83,7 @@ test("targets", () => {
     repo: "ui",
     number: 66,
   });
-  for (const repo of ["mmorpg", "arpg", "zoo", "my-farm"]) {
+  for (const repo of ["mmorpg", "arpg", "zoo", "my-farm", "battle-royale", "raid-defense"]) {
     assert.equal(parseTarget(`${repo}#454`).owner, "moenarch-games");
   }
   assert.equal(parseTarget("moritzbrantner/zoo#1").owner, "moritzbrantner");
