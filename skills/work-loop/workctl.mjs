@@ -2,7 +2,8 @@
 
 import { execFile, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { homedir } from "node:os";
+import { isAbsolute, join, relative, resolve } from "node:path";
 
 const DEFAULT_OWNER = "moritzbrantner";
 // Repos that moved to the moenarch-games org; everything else stays under DEFAULT_OWNER.
@@ -767,16 +768,36 @@ export async function merge(target, deps = mergeDeps()) {
 }
 
 const LAND_USAGE =
-  "workctl land <repo#number> [--clone <path>] [--cleanup-only] [--timeout <seconds>] [--wait-merged <seconds>]";
+  "workctl land <repo#number> [--clone <path>] [--cleanup-only] [--timeout <seconds>] [--wait-merged <seconds>] [--wait-review [seconds]]";
+
+// Worker clones live under this directory; land never deletes anything outside it.
+export const AGENT_WORK_ROOT = join(homedir(), ".cache", "agent-work");
+const WAIT_REVIEW_DEFAULT_MS = 7200_000;
+// A Codex review that shows no progress this long is re-requested once.
+const REVIEW_STUCK_MS = 3600_000;
 
 export function parseLand(args) {
-  const spec = { clone: null, cleanupOnly: false, timeoutMs: 3600_000, waitMergedMs: 0 };
+  const spec = {
+    clone: null,
+    cleanupOnly: false,
+    timeoutMs: 3600_000,
+    waitMergedMs: 0,
+    waitReviewMs: 0,
+  };
   let target = null;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     const value = args[index + 1];
     if (arg === "--clone" && value) spec.clone = args[(index += 1)];
     else if (arg === "--cleanup-only") spec.cleanupOnly = true;
+    else if (arg === "--wait-review") {
+      spec.waitReviewMs = WAIT_REVIEW_DEFAULT_MS;
+      if (value !== undefined && /^\d+(?:\.\d+)?$/.test(value)) {
+        const seconds = Number(args[(index += 1)]);
+        if (seconds <= 0) throw new Error(`usage: ${LAND_USAGE}`);
+        spec.waitReviewMs = seconds * 1000;
+      }
+    }
     else if ((arg === "--timeout" || arg === "--wait-merged") && value !== undefined) {
       const seconds = Number(args[(index += 1)]);
       if (!Number.isFinite(seconds) || seconds < 0 || (arg === "--timeout" && seconds === 0))
@@ -821,6 +842,20 @@ export function cloneKeepReason(path, branch, git = gitIn) {
   return null;
 }
 
+function realPath(path) {
+  try {
+    return realpathSync(path);
+  } catch {
+    return resolve(path);
+  }
+}
+
+/** Whether `path` lies strictly inside `root` (symlinks resolved when the path exists). */
+export function insideRoot(path, root, real = realPath) {
+  const rel = relative(real(root), real(path));
+  return Boolean(rel) && !rel.startsWith("..") && !isAbsolute(rel);
+}
+
 function landDeps() {
   return {
     ...mergeDeps(),
@@ -829,13 +864,22 @@ function landDeps() {
     exists: existsSync,
     remove: (path) => rmSync(path, { recursive: true, force: true }),
     now: Date.now,
+    cloneRoot: AGENT_WORK_ROOT,
+    realPath,
   };
+}
+
+function cloneOutsideRoot(spec, deps) {
+  return Boolean(spec.clone) && !insideRoot(spec.clone, deps.cloneRoot, deps.realPath);
 }
 
 /** Cleans the clone: `target/` once CI owns the PR, the whole clone once the PR merged. */
 function cleanClone(spec, pr, deps) {
   if (!spec.clone) return {};
   const clone = { path: spec.clone };
+  if (cloneOutsideRoot(spec, deps)) {
+    return { clone: { ...clone, kept: `outside ${deps.cloneRoot}` } };
+  }
   if (!deps.exists(spec.clone)) return { clone: { ...clone, removed: "absent" } };
   if (pr.merged) {
     const reason = cloneKeepReason(spec.clone, pr.headRefName, deps.git);
@@ -864,12 +908,60 @@ async function awaitMerged(spec, deps) {
 }
 
 /**
- * The worker's last step after opening a PR: wait for required checks, then enqueue (merge
+ * Waits with backoff (1 min growing to 5 min) until the Codex review of the current head is
+ * complete. A review whose state shows no progress for an hour is re-requested once with an
+ * `@codex review` comment. Returns `{ status, reviewWait }`, plus `result` when land must stop:
+ * `broken` (exit 1) for unanswered blocking findings, `timeout` (exit 2).
+ */
+async function awaitReview(spec, status, deps) {
+  const started = deps.now();
+  let lastProgress = started;
+  let seen = `${status.head} ${status.review.state}`;
+  let requested = false;
+  let delay = 60_000;
+  const summary = () => ({ waitedSeconds: Math.round((deps.now() - started) / 1000), requested });
+  const stop = (exitCode, state) => {
+    const reviewWait = summary();
+    return { exitCode, ...compact(status), state, merged: false, reviewWait };
+  };
+  for (;;) {
+    if (status.review.state === "complete") {
+      if (status.blockingFindings) return { status, result: stop(1, "broken") };
+      return { status, reviewWait: summary() };
+    }
+    const elapsed = deps.now() - started;
+    if (elapsed >= spec.waitReviewMs) return { status, result: stop(2, "timeout") };
+    if (!requested && deps.now() - lastProgress >= REVIEW_STUCK_MS) {
+      const repo = `${status.owner}/${status.repo}`;
+      const args = ["pr", "comment", String(status.number), "-R", repo, "--body", "@codex review"];
+      checked(deps.run(args), "gh pr comment");
+      requested = true;
+    }
+    await deps.pause(Math.min(delay, spec.waitReviewMs - elapsed));
+    delay = Math.min(Math.round(delay * 1.5), 300_000);
+    status = deps.inspect(spec.target);
+    const current = `${status.head} ${status.review.state}`;
+    if (current !== seen) {
+      seen = current;
+      lastProgress = deps.now();
+    }
+  }
+}
+
+/**
+ * The worker's last step after opening a PR: wait for required checks (and, with
+ * `--wait-review` on a Codex-gated repo, the review of the current head), then enqueue (merge
  * queue), enable auto-merge, or merge when `workctl pr` says ready; then clean the clone.
- * Returns one result object with `exitCode` (0 landed or left waiting, 1 red or rejected,
- * 2 check timeout).
+ * Returns one result object with `exitCode` (0 landed or left waiting, 1 red, rejected or
+ * blocking findings, 2 check or review timeout). Never deletes outside `~/.cache/agent-work`.
  */
 export async function land(spec, deps = landDeps()) {
+  const result = await landPr(spec, deps);
+  if (!cloneOutsideRoot(spec, deps)) return result;
+  return { ...result, warning: `clone ${spec.clone} is not under ${deps.cloneRoot}; not deleted` };
+}
+
+async function landPr(spec, deps) {
   const { target, owner, repo, number } = spec;
   const done = async (exitCode, result, landed) => {
     let pr = landed ? prState(spec, deps.run) : null;
@@ -903,10 +995,17 @@ export async function land(spec, deps = landDeps()) {
     return { exitCode, pr: `${owner}/${repo}#${number}`, ...rest, merged: false };
   }
 
-  const status = deps.inspect(target);
+  let status = deps.inspect(target);
+  let reviewWait = null;
+  if (spec.waitReviewMs && codexGateReason(status.repo, status.review)) {
+    const waited = await awaitReview(spec, status, deps);
+    if (waited.result) return waited.result;
+    ({ status, reviewWait } = waited);
+  }
+  const waitedFor = reviewWait ? { reviewWait } : {};
   const policy = deps.policy(status.owner, status.repo, status.pr.base.ref);
-  const base = { pr: status.target, head: status.head };
-  const notReady = () => ({ ...compact(status), merged: false });
+  const base = { pr: status.target, head: status.head, ...waitedFor };
+  const notReady = () => ({ ...compact(status), merged: false, ...waitedFor });
 
   if (policy.queue || policy.autoMerge) {
     // CI already ran; the queue or auto-merge handles mergeability, but never land a draft, a
@@ -957,7 +1056,7 @@ export async function land(spec, deps = landDeps()) {
   if (status.state !== "ready") return done(0, notReady(), false);
   const merged = await merge(target, { ...deps, inspect: () => status, policy: () => policy });
   const { exitCode, merged: _merged, ...result } = merged;
-  return done(exitCode, { ...result, method: "merge" }, exitCode === 0);
+  return done(exitCode, { ...result, method: "merge", ...waitedFor }, exitCode === 0);
 }
 
 const ISSUE_QUERY = `query($owner: String!, $repo: String!, $number: Int!) {
