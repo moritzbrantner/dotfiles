@@ -11,6 +11,7 @@ import {
   classify,
   cloneKeepReason,
   codexReview,
+  concatenatedJson,
   land,
   merge,
   mergePolicy,
@@ -1047,4 +1048,37 @@ test("clone cleanup refuses dirty, unpushed or foreign checkouts", () => {
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test("wait pr reads tab-separated checks from a gh without pr checks --json", async () => {
+  const noJson = { status: 1, stdout: "", stderr: "unknown flag: --json\n\nUsage: gh pr checks" };
+  const gh = fakeGh([
+    noJson,
+    { status: 8, stdout: "merge-ready\tpending\t0\thttps://x", stderr: "" },
+    noJson,
+    {
+      status: 0,
+      stdout: "merge-ready\tpass\t1m\thttps://x\nlint\tskipping\t0\thttps://y",
+      stderr: "",
+    },
+  ]);
+  const result = await wait(parseWait(["pr", "dotfiles#65"]), { run: gh.run, ...clock() });
+  assert.deepEqual([result.exitCode, result.state], [0, "green"]);
+  assert.deepEqual(gh.calls[1], [
+    "pr",
+    "checks",
+    "65",
+    "-R",
+    "moritzbrantner/dotfiles",
+    "--required",
+  ]);
+});
+
+test("paginated output without --slurp splits into one value per page", () => {
+  assert.deepEqual(concatenatedJson('[{"a":"]}["}]\n[{"b":"\\"["}]{"c":1}'), [
+    [{ a: "]}[" }],
+    [{ b: '"[' }],
+    { c: 1 },
+  ]);
+  assert.deepEqual(concatenatedJson(""), []);
 });

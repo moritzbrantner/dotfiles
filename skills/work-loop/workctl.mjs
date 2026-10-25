@@ -82,8 +82,36 @@ function optionalApi(endpoint) {
   throw new Error((result.stderr || result.stdout || `gh exited ${result.status}`).trim());
 }
 
+/** Splits `--paginate` output, one JSON value per page printed back to back, into values. */
+export function concatenatedJson(text) {
+  const values = [];
+  let depth = 0;
+  let start = -1;
+  let string = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (string) {
+      if (char === "\\") index += 1;
+      else if (char === '"') string = false;
+    } else if (char === '"') string = true;
+    else if (char === "[" || char === "{") {
+      if (depth++ === 0) start = index;
+    } else if ((char === "]" || char === "}") && --depth === 0) {
+      values.push(JSON.parse(text.slice(start, index + 1)));
+    }
+  }
+  return values;
+}
+
 function pages(endpoint) {
-  const result = api(endpoint, ["--paginate", "--slurp"]);
+  let result;
+  try {
+    result = api(endpoint, ["--paginate", "--slurp"]);
+  } catch (error) {
+    // gh before 2.48 has no --slurp; parse its page-by-page output instead.
+    if (!/unknown flag: --slurp/.test(error.message)) throw error;
+    return concatenatedJson(gh(["api", endpoint, "--paginate"]));
+  }
   return Array.isArray(result) ? result : [];
 }
 
@@ -1041,20 +1069,24 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /** Checks of a PR as `{ name: bucket }`: required checks, or all checks when none are required. */
 function prChecks(owner, repo, number, run = ghRaw) {
   for (const extra of [["--required"], []]) {
-    const result = run([
-      "pr",
-      "checks",
-      String(number),
-      "-R",
-      `${owner}/${repo}`,
-      ...extra,
-      "--json",
-      "name,bucket",
-    ]);
-    if (result.stdout.startsWith("[")) {
-      const checks = JSON.parse(result.stdout);
-      if (checks.length) return Object.fromEntries(checks.map((c) => [c.name, c.bucket]));
-    } else if (result.status !== 0 && !/no (required )?checks reported/i.test(result.stderr)) {
+    const args = ["pr", "checks", String(number), "-R", `${owner}/${repo}`, ...extra];
+    let result = run([...args, "--json", "name,bucket"]);
+    let checks = null;
+    if (/unknown flag: --json/.test(result.stderr)) {
+      // Older gh lacks `pr checks --json`; its non-TTY output is `name\tbucket\telapsed\turl`
+      // and it exits non-zero while checks are pending or failing.
+      result = run(args);
+      checks = result.stdout
+        .split("\n")
+        .map((line) => line.split("\t"))
+        .filter((fields) => fields.length >= 2 && fields[0])
+        .map(([name, bucket]) => ({ name, bucket }));
+      if (!checks.length) checks = null;
+    } else if (result.stdout.startsWith("[")) {
+      checks = JSON.parse(result.stdout);
+    }
+    if (checks?.length) return Object.fromEntries(checks.map((c) => [c.name, c.bucket]));
+    if (!checks && result.status !== 0 && !/no (required )?checks reported/i.test(result.stderr)) {
       throw new Error(result.stderr || `gh pr checks exited ${result.status}`);
     }
   }
