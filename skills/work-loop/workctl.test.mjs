@@ -184,7 +184,7 @@ test("CI states", () => {
   );
 });
 
-test("Codex review status is informational rather than a latest-head merge gate", () => {
+test("Codex review status reads the summary table", () => {
   const user = { login: "chatgpt-codex-connector[bot]", id: 199175422 };
   const completed = {
     user,
@@ -303,6 +303,68 @@ test("PR classification", () => {
       reasons: ["base agent/parent is not default branch main"],
     },
   );
+});
+
+test("Codex-gated repos wait for a completed review of the current head", () => {
+  const codex = { login: "chatgpt-codex-connector[bot]", id: 199175422 };
+  const head = "3e9fefe46934df230a94155d3f6321a2b9c02bfd";
+  const summary = (status, sha) => ({
+    user: codex,
+    body:
+      "<!-- codex-pull-request-review-summary -->\n" +
+      `<!-- codex-review-state:v1 {"code_review":{"commit_sha":"${sha}","status":"${status}"},"security_review":{"commit_sha":null,"status":null}} -->\n` +
+      "| 📝 **Code Review** | 🔄 **Running** since now | `3e9fefe` | Manual request |",
+  });
+  const old = "a93ac4f6e6a93ac4f6e6a93ac4f6e6a93ac4f6e6";
+  const reviews = {
+    absent: codexReview([], head),
+    running: codexReview([summary("running", head)], head),
+    complete: codexReview([summary("completed", head)], head),
+    stale: codexReview([summary("completed", old)], head),
+  };
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(reviews).map(([key, value]) => [key, value.state])),
+    { absent: "absent", running: "running", complete: "complete", stale: "stale" },
+  );
+
+  const ready = {
+    repo: "truth-core",
+    pr: { state: "open", draft: false, mergeable: true, mergeable_state: "clean" },
+    checks: { state: "green", failed: [], pending: [] },
+    blockingFindings: 0,
+  };
+  assert.deepEqual(classify({ ...ready, review: reviews.complete }), {
+    state: "ready",
+    reasons: [],
+  });
+  for (const name of ["absent", "running", "stale"]) {
+    assert.deepEqual(classify({ ...ready, review: reviews[name] }), {
+      state: "waiting",
+      reasons: [`Codex review ${name} for current head`],
+    });
+    assert.equal(classify({ ...ready, repo: "dotfiles", review: reviews[name] }).state, "ready");
+  }
+  assert.equal(
+    classify({ ...ready, review: reviews.complete, blockingFindings: 1 }).state,
+    "broken",
+  );
+});
+
+test("land does not hand a Codex-gated PR to auto-merge or the queue before review", async () => {
+  for (const policy of [{ autoMerge: true }, { queue: true }]) {
+    const gh = landGh({});
+    const status = landStatus({
+      repo: "truth-core",
+      review: { state: "running" },
+      state: "waiting",
+      reasons: ["Codex review running for current head"],
+    });
+    const result = await land(parseLand(["truth-core#5"]), landDepsFor(gh, { status, policy }));
+    assert.equal(result.exitCode, 0);
+    assert.equal(result.state, "waiting");
+    assert.equal(result.merged, false);
+    assert.equal(merges(gh).length, 0);
+  }
 });
 
 test("Renovate PRs skip review and all PRs retain CI and defect gates", () => {

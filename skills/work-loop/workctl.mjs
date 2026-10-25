@@ -324,7 +324,7 @@ export function statusFromGraphql(node) {
     checks,
     review,
     blockingFindings,
-    ...classify({ pr, checks, blockingFindings, defaultBranch }),
+    ...classify({ repo, pr, checks, review, blockingFindings, defaultBranch }),
   };
 }
 
@@ -357,6 +357,26 @@ export function codexReview(issueComments, head) {
     .sort((a, b) => time(b) - time(a))[0];
   if (!summary) {
     return { state: "absent" };
+  }
+
+  const marker = (summary.body ?? "").match(/<!--\s*codex-review-state:v1\s+(\{.*?\})\s*-->/s);
+  let codeReview = null;
+  try {
+    codeReview = marker ? JSON.parse(marker[1])?.code_review : null;
+  } catch {
+    codeReview = null;
+  }
+  if (codeReview?.status) {
+    if (!/^complete/i.test(codeReview.status)) {
+      return { state: "running" };
+    }
+    const commit = (codeReview.commit_sha ?? "").toLowerCase();
+    if (!commit) {
+      return { state: "unknown" };
+    }
+    return head.toLowerCase().startsWith(commit)
+      ? { state: "complete", commit }
+      : { state: "stale", commit };
   }
 
   const row = (summary.body ?? "")
@@ -441,7 +461,15 @@ function latestStatuses(statusPages) {
   return [...latest.values()];
 }
 
-export function classify({ pr, checks, blockingFindings, defaultBranch }) {
+// Repos whose PRs need a completed Codex review of the current head before merging.
+export const CODEX_GATED_REPOS = new Set(["truth-core"]);
+
+function codexGateReason(repo, review) {
+  if (!CODEX_GATED_REPOS.has(repo) || review?.state === "complete") return null;
+  return `Codex review ${review?.state ?? "absent"} for current head`;
+}
+
+export function classify({ repo, pr, checks, review, blockingFindings, defaultBranch }) {
   const baseReason = nonDefaultBaseReason(pr, defaultBranch);
   if (baseReason) {
     return { state: "waiting", reasons: [baseReason] };
@@ -468,6 +496,13 @@ export function classify({ pr, checks, blockingFindings, defaultBranch }) {
   } else if (checks.state === "pending" && state !== "broken") {
     state = "waiting";
     reasons.push(`pending checks: ${checks.pending.join(", ")}`);
+  }
+  const codexReason = codexGateReason(repo, review);
+  if (codexReason) {
+    if (state !== "broken") {
+      state = "waiting";
+    }
+    reasons.push(codexReason);
   }
   if (blockingFindings) {
     state = "broken";
@@ -523,8 +558,10 @@ function inspect(target, repository = null) {
     review,
     blockingFindings,
     ...classify({
+      repo,
       pr,
       checks,
+      review,
       blockingFindings,
       defaultBranch: repoInfo.default_branch,
     }),
@@ -873,12 +910,14 @@ export async function land(spec, deps = landDeps()) {
 
   if (policy.queue || policy.autoMerge) {
     // CI already ran; the queue or auto-merge handles mergeability, but never land a draft, a
-    // conflicting PR or one with unanswered blocking Codex findings.
+    // conflicting PR, one with unanswered blocking Codex findings, or a Codex-gated repo's PR
+    // without a completed review of its current head.
     if (
       status.pr.state !== "open" ||
       status.pr.draft ||
       status.pr.mergeable === false ||
-      status.blockingFindings
+      status.blockingFindings ||
+      codexGateReason(status.repo, status.review)
     ) {
       return done(0, notReady(), false);
     }
