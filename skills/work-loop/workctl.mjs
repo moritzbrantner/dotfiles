@@ -1041,20 +1041,24 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /** Checks of a PR as `{ name: bucket }`: required checks, or all checks when none are required. */
 function prChecks(owner, repo, number, run = ghRaw) {
   for (const extra of [["--required"], []]) {
-    const result = run([
-      "pr",
-      "checks",
-      String(number),
-      "-R",
-      `${owner}/${repo}`,
-      ...extra,
-      "--json",
-      "name,bucket",
-    ]);
-    if (result.stdout.startsWith("[")) {
-      const checks = JSON.parse(result.stdout);
-      if (checks.length) return Object.fromEntries(checks.map((c) => [c.name, c.bucket]));
-    } else if (result.status !== 0 && !/no (required )?checks reported/i.test(result.stderr)) {
+    const args = ["pr", "checks", String(number), "-R", `${owner}/${repo}`, ...extra];
+    let result = run([...args, "--json", "name,bucket"]);
+    let checks = null;
+    if (/unknown flag: --json/.test(result.stderr)) {
+      // Older gh lacks `pr checks --json`; its non-TTY output is `name\tbucket\telapsed\turl`
+      // and it exits non-zero while checks are pending or failing.
+      result = run(args);
+      checks = result.stdout
+        .split("\n")
+        .map((line) => line.split("\t"))
+        .filter((fields) => fields.length >= 2 && fields[0])
+        .map(([name, bucket]) => ({ name, bucket }));
+      if (!checks.length) checks = null;
+    } else if (result.stdout.startsWith("[")) {
+      checks = JSON.parse(result.stdout);
+    }
+    if (checks?.length) return Object.fromEntries(checks.map((c) => [c.name, c.bucket]));
+    if (!checks && result.status !== 0 && !/no (required )?checks reported/i.test(result.stderr)) {
       throw new Error(result.stderr || `gh pr checks exited ${result.status}`);
     }
   }
