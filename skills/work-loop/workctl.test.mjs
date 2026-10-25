@@ -11,6 +11,7 @@ import {
   classify,
   cloneKeepReason,
   codexReview,
+  concatenatedJson,
   land,
   merge,
   mergePolicy,
@@ -1071,4 +1072,13 @@ test("wait pr reads tab-separated checks from a gh without pr checks --json", as
     "moritzbrantner/dotfiles",
     "--required",
   ]);
+});
+
+test("paginated output without --slurp splits into one value per page", () => {
+  assert.deepEqual(concatenatedJson('[{"a":"]}["}]\n[{"b":"\\"["}]{"c":1}'), [
+    [{ a: "]}[" }],
+    [{ b: '"[' }],
+    { c: 1 },
+  ]);
+  assert.deepEqual(concatenatedJson(""), []);
 });
