@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -881,9 +881,12 @@ function landDepsFor(
     checks = { exitCode: 0, state: "green" },
     git,
     fs = landFs([]),
+    ...extra
   } = {},
 ) {
   return {
+    cloneRoot: "/",
+    realPath: resolve,
     run: gh.run,
     pause: async () => {},
     now: () => 0,
@@ -899,6 +902,7 @@ function landDepsFor(
     git: git ?? (() => ({ status: 1, stdout: "" })),
     exists: fs.exists,
     remove: fs.remove,
+    ...extra,
   };
 }
 
@@ -914,16 +918,108 @@ test("land parses its options", () => {
     cleanupOnly: false,
     timeoutMs: 3600_000,
     waitMergedMs: 60_000,
+    waitReviewMs: 0,
   });
+  assert.equal(parseLand(["a#1", "--wait-review"]).waitReviewMs, 7200_000);
+  assert.equal(parseLand(["a#1", "--wait-review", "600", "--clone", "/c"]).waitReviewMs, 600_000);
+  assert.equal(parseLand(["a#1", "--wait-review", "--clone", "/c"]).clone, "/c");
   for (const bad of [
     [],
     ["a#1", "b#2"],
     ["a#1", "--cleanup-only"],
     ["a#1", "--timeout", "0"],
+    ["a#1", "--wait-review", "0"],
     ["a#1", "--x"],
   ]) {
     assert.throws(() => parseLand(bad), /usage: workctl land/);
   }
+});
+
+/** Statuses a Codex-gated PR moves through while land --wait-review polls `inspect`. */
+function reviewSequence(...reviews) {
+  const statuses = reviews.map(([review, extra = {}]) =>
+    landStatus({
+      repo: "truth-core",
+      owner: "moritzbrantner",
+      target: "moritzbrantner/truth-core#5",
+      review: { state: review },
+      state: review === "complete" ? "ready" : "waiting",
+      ...extra,
+    }),
+  );
+  let index = 0;
+  return () => statuses[Math.min(index++, statuses.length - 1)];
+}
+
+const reviewComments = (gh) => gh.calls.filter((args) => args[0] === "pr" && args[1] === "comment");
+
+test("land --wait-review waits for the Codex review of the current head, then merges", async () => {
+  const gh = landGh({}, { onMerge: (pr) => void (pr.merged = true) });
+  const time = clock();
+  const inspect = reviewSequence(["absent"], ["running"], ["running"], ["complete"]);
+  const result = await land(
+    parseLand(["truth-core#5", "--wait-review"]),
+    landDepsFor(gh, { inspect, ...time }),
+  );
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.state, "merged");
+  assert.deepEqual(result.reviewWait, { waitedSeconds: 285, requested: false });
+  assert.equal(reviewComments(gh).length, 0);
+  assert.equal(merges(gh).length, 1);
+});
+
+test("land --wait-review re-requests a stuck review once, then keeps waiting", async () => {
+  const gh = landGh({}, { onMerge: (pr) => void (pr.merged = true) });
+  const time = clock();
+  const stuck = Array.from({ length: 20 }, () => ["running"]);
+  const inspect = reviewSequence(...stuck, ["complete"]);
+  const result = await land(
+    parseLand(["truth-core#5", "--wait-review"]),
+    landDepsFor(gh, { inspect, ...time }),
+  );
+  assert.equal(result.state, "merged");
+  assert.equal(result.reviewWait.requested, true);
+  assert.deepEqual(reviewComments(gh), [
+    ["pr", "comment", "5", "-R", "moritzbrantner/truth-core", "--body", "@codex review"],
+  ]);
+});
+
+test("land --wait-review stops as broken on blocking findings and times out with exit 2", async () => {
+  const gh = landGh({});
+  const inspect = reviewSequence(["running"], ["complete", { blockingFindings: 1 }]);
+  const broken = await land(
+    parseLand(["truth-core#5", "--wait-review"]),
+    landDepsFor(gh, { inspect, ...clock() }),
+  );
+  assert.equal(broken.exitCode, 1);
+  assert.equal(broken.state, "broken");
+  assert.equal(broken.blockingFindings, 1);
+  assert.equal(broken.merged, false);
+  assert.equal(merges(gh).length, 0);
+
+  const timedOut = await land(
+    parseLand(["truth-core#5", "--wait-review", "600"]),
+    landDepsFor(gh, { inspect: reviewSequence(["running"]), ...clock() }),
+  );
+  assert.deepEqual([timedOut.exitCode, timedOut.state, timedOut.merged], [2, "timeout", false]);
+  assert.equal(merges(gh).length, 0);
+});
+
+test("land never deletes a clone outside the agent-work root and warns about it", async () => {
+  const gh = landGh({ merged: true, state: "MERGED" });
+  const fs = landFs(["/home/u/moritzbrantner/x", "/home/u/moritzbrantner/x/target"]);
+  const out = { "symbolic-ref": "agent/x", status: "", "rev-list": "0" };
+  const git = (cwd, args) => ({ status: 0, stdout: args[0] === "rev-parse" ? cwd : out[args[0]] });
+  for (const clone of ["/home/u/moritzbrantner/x", "/home/u/.cache/agent-work"]) {
+    const result = await land(
+      parseLand(["dotfiles#5", "--clone", clone, "--cleanup-only"]),
+      landDepsFor(gh, { fs, git, cloneRoot: "/home/u/.cache/agent-work" }),
+    );
+    assert.equal(result.state, "merged");
+    assert.deepEqual(result.clone, { path: clone, kept: "outside /home/u/.cache/agent-work" });
+    assert.match(result.warning, /is not under \/home\/u\/\.cache\/agent-work/);
+  }
+  assert.equal(fs.present.size, 2);
 });
 
 test("land enqueues on a merge-queue repo and retries via GraphQL when gh leaves it un-queued", async () => {
