@@ -122,6 +122,17 @@ Run the linked helper with `node ~/.local/share/coding-agent/workctl.mjs scan` f
 `wait run <repo> <run-id>` for a workflow run, `wait pid <pid>` for a process to exit and
 `wait file <path> [--contains <text>]` for a file. Each takes `--timeout <seconds>` (default
 3600), backs off between probes, prints one JSON line and exits 0 green/done, 1 red, 2 timeout.
+`workctl land dotfiles#15 [--clone <path>] [--cleanup-only] [--timeout <seconds>] [--wait-merged <seconds>]`
+is a worker's single last step after opening a PR. It waits for required checks like `wait pr`
+and exits 1 when they go red. On merge-queue repositories it enqueues the PR and confirms
+`isInMergeQueue`, retrying once through the `enqueuePullRequest` mutation. Where auto-merge is
+allowed it runs `gh pr merge --auto --squash`. Elsewhere it merges only when `workctl pr` reports
+`ready`, which includes the Codex blocking-findings check, and otherwise prints the state and
+exits 0. With `--clone`, it deletes `<path>/target` after enqueueing or merging. It deletes the
+whole clone only once the PR has merged, either during the `--wait-merged` window or on a later
+`--cleanup-only` run, and only when the clone is on the PR branch with a clean
+`git status --porcelain` and nothing in `@{u}..HEAD`. It prints one JSON line. `workctl merge` on
+a merge-queue repository also confirms that the PR entered the queue.
 The helper requires Node.js 22.18+ on the 22.x line or Node.js 24.2+ on newer lines for native
 ESM entry-point detection (`import.meta.main`). Symlink invocation needs no launcher. Importing
 the module keeps the exported helpers available without running the CLI.

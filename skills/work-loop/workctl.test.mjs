@@ -9,10 +9,14 @@ import { fileURLToPath } from "node:url";
 import {
   checkState,
   classify,
+  cloneKeepReason,
   codexReview,
+  land,
+  merge,
   mergePolicy,
   main,
   markdownSections,
+  parseLand,
   parseTarget,
   parseWait,
   renderIssue,
@@ -414,7 +418,7 @@ test("merge queue keeps the head branch", () => {
       },
       [{ type: "merge_queue" }],
     ),
-    { method: "--merge", deleteBranch: false, queue: true },
+    { method: "--merge", deleteBranch: false, queue: true, autoMerge: false },
   );
 });
 
@@ -744,4 +748,303 @@ test("wait pid exits for a real process without matching itself", () => {
   );
   assert.equal(result.status, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).state, "exited");
+});
+
+function landStatus(overrides = {}) {
+  return {
+    owner: "moenarch-games",
+    repo: "mmorpg",
+    number: 5,
+    target: "moenarch-games/mmorpg#5",
+    head: "abc123",
+    pr: {
+      state: "open",
+      draft: false,
+      mergeable: true,
+      mergeable_state: "clean",
+      base: { ref: "main" },
+    },
+    checks: { state: "green", failed: [], pending: [] },
+    review: { state: "absent" },
+    blockingFindings: 0,
+    state: "ready",
+    reasons: [],
+    ...overrides,
+  };
+}
+
+/** Fake gh for land/merge: tracks one PR; `onMerge`/`onEnqueue` mutate it like GitHub would. */
+function landGh(pr, { onMerge = () => {}, onEnqueue = () => {} } = {}) {
+  const state = {
+    id: "PR_1",
+    state: "OPEN",
+    merged: false,
+    isInMergeQueue: false,
+    headRefName: "agent/x",
+    headRefOid: "abc123",
+    autoMergeRequest: null,
+    ...pr,
+  };
+  const calls = [];
+  const run = (args) => {
+    calls.push(args);
+    const query = args.find((arg) => arg.startsWith("query=")) ?? "";
+    if (args[0] === "pr" && args[1] === "merge") onMerge(state, args);
+    else if (query.includes("enqueuePullRequest")) onEnqueue(state, args);
+    else if (query.includes("pullRequest(number"))
+      return ok({ data: { repository: { pullRequest: { ...state } } } });
+    return ok({});
+  };
+  return { state, calls, run };
+}
+
+function landFs(paths) {
+  const present = new Set(paths);
+  return {
+    present,
+    exists: (path) => present.has(path),
+    remove: (path) => {
+      for (const entry of [...present])
+        if (entry === path || entry.startsWith(`${path}/`)) present.delete(entry);
+    },
+  };
+}
+
+function landDepsFor(
+  gh,
+  {
+    status = landStatus(),
+    policy = {},
+    checks = { exitCode: 0, state: "green" },
+    git,
+    fs = landFs([]),
+  } = {},
+) {
+  return {
+    run: gh.run,
+    pause: async () => {},
+    now: () => 0,
+    inspect: () => status,
+    policy: () => ({
+      method: "--squash",
+      deleteBranch: false,
+      queue: false,
+      autoMerge: false,
+      ...policy,
+    }),
+    waitChecks: async () => checks,
+    git: git ?? (() => ({ status: 1, stdout: "" })),
+    exists: fs.exists,
+    remove: fs.remove,
+  };
+}
+
+const merges = (gh) => gh.calls.filter((args) => args[0] === "pr" && args[1] === "merge");
+
+test("land parses its options", () => {
+  assert.deepEqual(parseLand(["mmorpg#5", "--clone", "/c", "--wait-merged", "60"]), {
+    owner: "moenarch-games",
+    repo: "mmorpg",
+    number: 5,
+    target: "mmorpg#5",
+    clone: "/c",
+    cleanupOnly: false,
+    timeoutMs: 3600_000,
+    waitMergedMs: 60_000,
+  });
+  for (const bad of [
+    [],
+    ["a#1", "b#2"],
+    ["a#1", "--cleanup-only"],
+    ["a#1", "--timeout", "0"],
+    ["a#1", "--x"],
+  ]) {
+    assert.throws(() => parseLand(bad), /usage: workctl land/);
+  }
+});
+
+test("land enqueues on a merge-queue repo and retries via GraphQL when gh leaves it un-queued", async () => {
+  const gh = landGh({}, { onEnqueue: (pr) => void (pr.isInMergeQueue = true) });
+  const fs = landFs(["/c", "/c/target", "/c/target/debug"]);
+  const result = await land(
+    parseLand(["mmorpg#5", "--clone", "/c"]),
+    landDepsFor(gh, { policy: { queue: true }, fs }),
+  );
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.state, "queued");
+  assert.equal(result.merged, false);
+  assert.deepEqual(result.clone, { path: "/c", removed: "target" });
+  assert.deepEqual([...fs.present], ["/c"]);
+  assert.deepEqual(merges(gh)[0], [
+    "pr",
+    "merge",
+    "5",
+    "-R",
+    "moenarch-games/mmorpg",
+    "--match-head-commit",
+    "abc123",
+  ]);
+  assert.ok(gh.calls.some((args) => args.includes("id=PR_1") && args.includes("head=abc123")));
+});
+
+test("land exits 1 when the merge queue never accepts the PR, keeping target", async () => {
+  const gh = landGh({});
+  const fs = landFs(["/c", "/c/target"]);
+  const result = await land(
+    parseLand(["mmorpg#5", "--clone", "/c"]),
+    landDepsFor(gh, { policy: { queue: true }, fs }),
+  );
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.state, "not-queued");
+  assert.equal(result.clone, undefined);
+  assert.ok(fs.present.has("/c/target"));
+});
+
+test("land stops on red checks without merging", async () => {
+  const gh = landGh({});
+  const checks = {
+    exitCode: 1,
+    kind: "pr",
+    target: "x",
+    state: "red",
+    failing: ["ci"],
+    waitedSeconds: 3,
+  };
+  const result = await land(parseLand(["mmorpg#5"]), landDepsFor(gh, { checks }));
+  assert.deepEqual(result, {
+    exitCode: 1,
+    pr: "moenarch-games/mmorpg#5",
+    state: "red",
+    failing: ["ci"],
+    waitedSeconds: 3,
+    merged: false,
+  });
+  assert.equal(merges(gh).length, 0);
+});
+
+test("land enables squash auto-merge where the repo allows it", async () => {
+  const gh = landGh({}, { onMerge: (pr) => void (pr.autoMergeRequest = { enabledAt: "now" }) });
+  const status = landStatus({
+    state: "waiting",
+    pr: { ...landStatus().pr, mergeable_state: "blocked" },
+  });
+  const result = await land(
+    parseLand(["mmorpg#5"]),
+    landDepsFor(gh, { status, policy: { autoMerge: true, deleteBranch: true } }),
+  );
+  assert.equal(result.state, "auto-merge");
+  assert.deepEqual(merges(gh)[0].slice(5), [
+    "--auto",
+    "--squash",
+    "--delete-branch",
+    "--match-head-commit",
+    "abc123",
+  ]);
+});
+
+test("land leaves a not-ready PR on a plain repo and merges a ready one, then removes a clean clone", async () => {
+  const waiting = landGh({});
+  const notReady = landStatus({
+    state: "broken",
+    blockingFindings: 1,
+    reasons: ["1 unanswered high-priority Codex finding"],
+  });
+  const left = await land(parseLand(["dotfiles#5"]), landDepsFor(waiting, { status: notReady }));
+  assert.equal(left.exitCode, 0);
+  assert.equal(left.state, "broken");
+  assert.equal(left.merged, false);
+  assert.equal(merges(waiting).length, 0);
+
+  const gh = landGh({}, { onMerge: (pr) => void (pr.merged = true) });
+  const fs = landFs(["/c", "/c/target"]);
+  const git = (_cwd, args) => {
+    const out = { "rev-parse": "/c", "symbolic-ref": "agent/x", status: "", "rev-list": "0" }[
+      args[0]
+    ];
+    return { status: 0, stdout: out };
+  };
+  const result = await land(
+    parseLand(["dotfiles#5", "--clone", "/c"]),
+    landDepsFor(gh, { fs, git }),
+  );
+  assert.equal(result.state, "merged");
+  assert.equal(result.merged, true);
+  assert.equal(result.method, "merge");
+  assert.deepEqual(result.clone, { path: "/c", removed: "clone" });
+  assert.equal(fs.present.size, 0);
+  assert.ok(merges(gh)[0].includes("--squash"));
+});
+
+test("land --cleanup-only removes a merged clone only when it has no local work", async () => {
+  const gh = landGh({ merged: true, state: "MERGED" });
+  const fs = landFs(["/c", "/c/target"]);
+  const git = (_cwd, args) => ({
+    status: 0,
+    stdout: { "rev-parse": "/c", "symbolic-ref": "agent/x", status: " M a.rs", "rev-list": "0" }[
+      args[0]
+    ],
+  });
+  const result = await land(
+    parseLand(["dotfiles#5", "--clone", "/c", "--cleanup-only"]),
+    landDepsFor(gh, { fs, git }),
+  );
+  assert.equal(result.exitCode, 0);
+  assert.deepEqual(result.clone, { path: "/c", kept: "uncommitted changes", removed: "target" });
+  assert.ok(fs.present.has("/c"));
+  assert.equal(gh.calls.length, 2);
+});
+
+test("merge on a merge-queue repo confirms the PR entered the queue", async () => {
+  const gh = landGh({});
+  const deps = { ...landDepsFor(gh, { policy: { queue: true } }) };
+  const rejected = await merge("mmorpg#5", deps);
+  assert.deepEqual([rejected.exitCode, rejected.state, rejected.merged], [1, "waiting", false]);
+
+  const accepted = landGh({}, { onMerge: (pr) => void (pr.isInMergeQueue = true) });
+  const result = await merge("mmorpg#5", landDepsFor(accepted, { policy: { queue: true } }));
+  assert.deepEqual(result, {
+    exitCode: 0,
+    pr: "moenarch-games/mmorpg#5",
+    state: "queued",
+    head: "abc123",
+    merged: false,
+  });
+});
+
+test("clone cleanup refuses dirty, unpushed or foreign checkouts", () => {
+  const directory = mkdtempSync(join(tmpdir(), "workctl-clone-"));
+  const git = (cwd, ...args) => {
+    const result = spawnSync("git", ["-C", cwd, ...args], { encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+  };
+  try {
+    const remote = join(directory, "remote.git");
+    const clone = join(directory, "clone");
+    spawnSync("git", ["init", "-q", "--bare", remote]);
+    spawnSync("git", ["clone", "-q", remote, clone]);
+    git(
+      clone,
+      "-c",
+      "user.name=t",
+      "-c",
+      "user.email=t@t",
+      "commit",
+      "-q",
+      "--allow-empty",
+      "-m",
+      "a",
+    );
+    git(clone, "checkout", "-q", "-b", "agent/x");
+    git(clone, "push", "-q", "-u", "origin", "agent/x");
+    assert.equal(cloneKeepReason(clone, "agent/x"), null);
+    assert.match(cloneKeepReason(clone, "agent/y"), /not PR branch agent\/y/);
+    assert.equal(cloneKeepReason(directory, "agent/x"), "not a git checkout");
+    writeFileSync(join(clone, "f"), "x");
+    assert.equal(cloneKeepReason(clone, "agent/x"), "uncommitted changes");
+    git(clone, "add", "f");
+    git(clone, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "b");
+    assert.equal(cloneKeepReason(clone, "agent/x"), "unpushed commits");
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { execFile, spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import { join } from "node:path";
 
 const DEFAULT_OWNER = "moritzbrantner";
 // Repos that moved to the moenarch-games org; everything else stays under DEFAULT_OWNER.
@@ -579,6 +580,7 @@ export function mergePolicy(repository, rules = [], protection = null) {
     method: selectMergeMethod(repository, rules, protection),
     deleteBranch: !queue,
     queue,
+    autoMerge: Boolean(repository.allow_auto_merge),
   };
 }
 
@@ -590,40 +592,305 @@ function remoteMergePolicy(owner, repo, base) {
   return mergePolicy(repository, rules, protection);
 }
 
-function merge(target) {
-  const status = inspect(target);
-  if (status.state !== "ready") {
-    process.stdout.write(`${JSON.stringify({ ...compact(status), merged: false })}\n`);
-    process.exitCode = 2;
-    return;
+const PR_STATE_QUERY = `query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      id state merged isInMergeQueue headRefName headRefOid
+      autoMergeRequest { enabledAt }
+    }
   }
+}`;
 
-  const policy = remoteMergePolicy(status.owner, status.repo, status.pr.base.ref);
-  const args = [
+const ENQUEUE_MUTATION = `mutation($id: ID!, $head: GitObjectID) {
+  enqueuePullRequest(input: { pullRequestId: $id, expectedHeadOid: $head }) {
+    mergeQueueEntry { state }
+  }
+}`;
+
+function checked(result, what) {
+  if (result.status !== 0) throw new Error(result.stderr || `${what} exited ${result.status}`);
+  return result.stdout;
+}
+
+/** Live merge-relevant PR state from GraphQL. */
+function prState({ owner, repo, number }, run = ghRaw) {
+  const args = ["api", "graphql", "-f", `query=${PR_STATE_QUERY}`];
+  args.push("-F", `owner=${owner}`, "-F", `repo=${repo}`, "-F", `number=${number}`);
+  const pr = JSON.parse(checked(run(args), "gh api graphql"))?.data?.repository?.pullRequest;
+  if (!pr) throw new Error(`pull request not found: ${owner}/${repo}#${number}`);
+  return pr;
+}
+
+function mergeArgs(status, extra) {
+  return [
     "pr",
     "merge",
     String(status.number),
     "-R",
     `${status.owner}/${status.repo}`,
-    // A merge queue sets the method itself; gh then enqueues the PR instead of merging it.
-    ...(policy.queue ? [] : [policy.method]),
+    ...extra,
     "--match-head-commit",
     status.head,
   ];
-  if (policy.deleteBranch) {
-    args.push("--delete-branch");
+}
+
+/**
+ * Enqueues a PR and confirms `isInMergeQueue` (or merged). `gh pr merge` can return success
+ * while leaving the PR outside the queue, so an unconfirmed enqueue is retried once through the
+ * `enqueuePullRequest` mutation. Returns `{ queued, merged, attempts }`.
+ */
+export async function enqueue(status, { run = ghRaw, pause = sleep, probes = 3 } = {}) {
+  const confirm = async () => {
+    for (let probe = 0; probe < probes; probe += 1) {
+      if (probe) await pause(3000);
+      const pr = prState(status, run);
+      if (pr.merged || pr.isInMergeQueue) return pr;
+    }
+    return null;
+  };
+  // A merge queue sets the method itself; gh then enqueues the PR instead of merging it.
+  checked(run(mergeArgs(status, [])), "gh pr merge");
+  let pr = await confirm();
+  let attempts = 1;
+  if (!pr) {
+    attempts = 2;
+    const { id } = prState(status, run);
+    const args = ["api", "graphql", "-f", `query=${ENQUEUE_MUTATION}`];
+    args.push("-f", `id=${id}`, "-f", `head=${status.head}`);
+    const retry = run(args);
+    if (retry.status === 0) pr = await confirm();
   }
-  gh(args);
-  const merged = api(`repos/${status.owner}/${status.repo}/pulls/${status.number}`);
-  process.stdout.write(
-    `${JSON.stringify({
+  return { queued: Boolean(pr), merged: Boolean(pr?.merged), attempts };
+}
+
+function mergeDeps() {
+  return { run: ghRaw, pause: sleep, inspect, policy: remoteMergePolicy };
+}
+
+export async function merge(target, deps = mergeDeps()) {
+  const { run, inspect: look, policy: policyFor } = deps;
+  const status = look(target);
+  if (status.state !== "ready") {
+    return { exitCode: 2, ...compact(status), merged: false };
+  }
+
+  const policy = policyFor(status.owner, status.repo, status.pr.base.ref);
+  if (policy.queue) {
+    const queued = await enqueue(status, deps);
+    return {
+      exitCode: queued.queued ? 0 : 1,
       pr: status.target,
-      state: merged.merged ? "merged" : policy.queue ? "queued" : "waiting",
+      state: queued.merged ? "merged" : queued.queued ? "queued" : "waiting",
       head: status.head,
-      merged: Boolean(merged.merged),
-      ...(!merged.merged && !policy.queue ? { reason: "merge accepted but not completed" } : {}),
-    })}\n`,
+      merged: queued.merged,
+      ...(!queued.queued ? { reason: "merge queue did not accept the PR after a retry" } : {}),
+    };
+  }
+  checked(
+    run(mergeArgs(status, [policy.method, ...(policy.deleteBranch ? ["--delete-branch"] : [])])),
+    "gh pr merge",
   );
+  const merged = prState(status, run).merged;
+  return {
+    exitCode: 0,
+    pr: status.target,
+    state: merged ? "merged" : "waiting",
+    head: status.head,
+    merged,
+    ...(!merged ? { reason: "merge accepted but not completed" } : {}),
+  };
+}
+
+const LAND_USAGE =
+  "workctl land <repo#number> [--clone <path>] [--cleanup-only] [--timeout <seconds>] [--wait-merged <seconds>]";
+
+export function parseLand(args) {
+  const spec = { clone: null, cleanupOnly: false, timeoutMs: 3600_000, waitMergedMs: 0 };
+  let target = null;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    const value = args[index + 1];
+    if (arg === "--clone" && value) spec.clone = args[(index += 1)];
+    else if (arg === "--cleanup-only") spec.cleanupOnly = true;
+    else if ((arg === "--timeout" || arg === "--wait-merged") && value !== undefined) {
+      const seconds = Number(args[(index += 1)]);
+      if (!Number.isFinite(seconds) || seconds < 0 || (arg === "--timeout" && seconds === 0))
+        throw new Error(`usage: ${LAND_USAGE}`);
+      spec[arg === "--timeout" ? "timeoutMs" : "waitMergedMs"] = seconds * 1000;
+    } else if (arg.startsWith("--") || target) throw new Error(`usage: ${LAND_USAGE}`);
+    else target = arg;
+  }
+  if (!target || (spec.cleanupOnly && !spec.clone)) throw new Error(`usage: ${LAND_USAGE}`);
+  return { ...parseTarget(target), target, ...spec };
+}
+
+function gitIn(cwd, args) {
+  const result = spawnSync("git", ["-C", cwd, ...args], { encoding: "utf8" });
+  if (result.error) throw result.error;
+  return { status: result.status, stdout: (result.stdout ?? "").trim() };
+}
+
+/**
+ * Why a clone must be kept, or null when it is safe to delete: it must be a git checkout root
+ * on the PR's head branch with a clean tree and no commits missing from its upstream (or from
+ * every remote when the upstream is gone).
+ */
+export function cloneKeepReason(path, branch, git = gitIn) {
+  const root = git(path, ["rev-parse", "--show-toplevel"]);
+  if (root.status !== 0) return "not a git checkout";
+  let same;
+  try {
+    same = realpathSync(root.stdout) === realpathSync(path);
+  } catch {
+    same = root.stdout === path;
+  }
+  if (!same) return "not the checkout root";
+  const current = git(path, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
+  if (current.status !== 0 || current.stdout !== branch)
+    return `checked out ${current.stdout || "detached HEAD"}, not PR branch ${branch}`;
+  const dirty = git(path, ["status", "--porcelain"]);
+  if (dirty.status !== 0 || dirty.stdout) return "uncommitted changes";
+  let ahead = git(path, ["rev-list", "--count", "@{u}..HEAD"]);
+  if (ahead.status !== 0) ahead = git(path, ["rev-list", "--count", "HEAD", "--not", "--remotes"]);
+  if (ahead.status !== 0 || ahead.stdout !== "0") return "unpushed commits";
+  return null;
+}
+
+function landDeps() {
+  return {
+    ...mergeDeps(),
+    waitChecks: (spec) => wait({ ...spec, kind: "pr" }),
+    git: gitIn,
+    exists: existsSync,
+    remove: (path) => rmSync(path, { recursive: true, force: true }),
+    now: Date.now,
+  };
+}
+
+/** Cleans the clone: `target/` once CI owns the PR, the whole clone once the PR merged. */
+function cleanClone(spec, pr, deps) {
+  if (!spec.clone) return {};
+  const clone = { path: spec.clone };
+  if (!deps.exists(spec.clone)) return { clone: { ...clone, removed: "absent" } };
+  if (pr.merged) {
+    const reason = cloneKeepReason(spec.clone, pr.headRefName, deps.git);
+    if (!reason) {
+      deps.remove(spec.clone);
+      return { clone: { ...clone, removed: "clone" } };
+    }
+    clone.kept = reason;
+  }
+  const target = join(spec.clone, "target");
+  if (deps.exists(target)) {
+    deps.remove(target);
+    clone.removed = "target";
+  }
+  return { clone };
+}
+
+async function awaitMerged(spec, deps) {
+  const started = deps.now();
+  let pr = prState(spec, deps.run);
+  while (!pr.merged && pr.state === "OPEN" && deps.now() - started < spec.waitMergedMs) {
+    await deps.pause(Math.min(30_000, Math.max(spec.waitMergedMs - (deps.now() - started), 0)));
+    pr = prState(spec, deps.run);
+  }
+  return pr;
+}
+
+/**
+ * The worker's last step after opening a PR: wait for required checks, then enqueue (merge
+ * queue), enable auto-merge, or merge when `workctl pr` says ready; then clean the clone.
+ * Returns one result object with `exitCode` (0 landed or left waiting, 1 red or rejected,
+ * 2 check timeout).
+ */
+export async function land(spec, deps = landDeps()) {
+  const { target, owner, repo, number } = spec;
+  const done = async (exitCode, result, landed) => {
+    let pr = landed ? prState(spec, deps.run) : null;
+    if (pr && !pr.merged && spec.waitMergedMs) pr = await awaitMerged(spec, deps);
+    const merged = Boolean(pr?.merged);
+    return {
+      exitCode,
+      ...result,
+      state: merged ? "merged" : result.state,
+      merged,
+      ...(landed ? cleanClone(spec, pr, deps) : {}),
+    };
+  };
+
+  const current = prState(spec, deps.run);
+  if (spec.cleanupOnly || current.merged || current.state !== "OPEN") {
+    const queued = current.isInMergeQueue || Boolean(current.autoMergeRequest);
+    const state = current.merged
+      ? "merged"
+      : current.state !== "OPEN"
+        ? current.state.toLowerCase()
+        : queued
+          ? "queued"
+          : "open";
+    return done(0, { pr: `${owner}/${repo}#${number}`, state }, current.merged || queued);
+  }
+
+  const checks = await deps.waitChecks({ owner, repo, number, target, timeoutMs: spec.timeoutMs });
+  if (checks.exitCode !== 0) {
+    const { exitCode, kind: _kind, target: _target, ...rest } = checks;
+    return { exitCode, pr: `${owner}/${repo}#${number}`, ...rest, merged: false };
+  }
+
+  const status = deps.inspect(target);
+  const policy = deps.policy(status.owner, status.repo, status.pr.base.ref);
+  const base = { pr: status.target, head: status.head };
+  const notReady = () => ({ ...compact(status), merged: false });
+
+  if (policy.queue || policy.autoMerge) {
+    // CI already ran; the queue or auto-merge handles mergeability, but never land a draft, a
+    // conflicting PR or one with unanswered blocking Codex findings.
+    if (
+      status.pr.state !== "open" ||
+      status.pr.draft ||
+      status.pr.mergeable === false ||
+      status.blockingFindings
+    ) {
+      return done(0, notReady(), false);
+    }
+  }
+  if (policy.queue) {
+    const queued = await enqueue(status, deps);
+    if (!queued.queued) {
+      return done(
+        1,
+        { ...base, state: "not-queued", method: "queue", reason: "merge queue rejected PR twice" },
+        false,
+      );
+    }
+    return done(0, { ...base, state: "queued", method: "queue" }, true);
+  }
+  if (policy.autoMerge) {
+    checked(
+      deps.run(
+        mergeArgs(status, [
+          "--auto",
+          "--squash",
+          ...(policy.deleteBranch ? ["--delete-branch"] : []),
+        ]),
+      ),
+      "gh pr merge",
+    );
+    const pr = prState(status, deps.run);
+    if (!pr.merged && !pr.autoMergeRequest) {
+      return done(
+        1,
+        { ...base, state: "not-queued", method: "auto", reason: "auto-merge was not enabled" },
+        false,
+      );
+    }
+    return done(0, { ...base, state: "auto-merge", method: "auto" }, true);
+  }
+  if (status.state !== "ready") return done(0, notReady(), false);
+  const merged = await merge(target, { ...deps, inspect: () => status, policy: () => policy });
+  const { exitCode, merged: _merged, ...result } = merged;
+  return done(exitCode, { ...result, method: "merge" }, exitCode === 0);
 }
 
 const ISSUE_QUERY = `query($owner: String!, $repo: String!, $number: Int!) {
@@ -933,7 +1200,20 @@ export async function wait(spec, { now = Date.now, pause = sleep, ...probeDeps }
   }
 }
 
-const USAGE = `usage: workctl scan [repo|owner/repo] | workctl <pr|merge> <repo#number|owner/repo#number> | workctl issue <repo#number> [--full] [--section <heading text>]... [--since <ISO time>] | ${WAIT_USAGE}`;
+const USAGE = `usage: workctl scan [repo|owner/repo] | workctl <pr|merge> <repo#number|owner/repo#number> | ${LAND_USAGE} | workctl issue <repo#number> [--full] [--section <heading text>]... [--since <ISO time>] | ${WAIT_USAGE}`;
+
+function emit(promise) {
+  return promise.then(
+    ({ exitCode, ...result }) => {
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      process.exitCode = exitCode;
+    },
+    (error) => {
+      process.stderr.write(`${JSON.stringify({ error: error.message })}\n`);
+      process.exitCode = 1;
+    },
+  );
+}
 
 export function main(argv = process.argv.slice(2)) {
   const [command, target, ...extra] = argv;
@@ -951,17 +1231,10 @@ export function main(argv = process.argv.slice(2)) {
     );
   }
   if (command === "wait") {
-    const spec = parseWait(argv.slice(1));
-    return wait(spec).then(
-      ({ exitCode, ...result }) => {
-        process.stdout.write(`${JSON.stringify(result)}\n`);
-        process.exitCode = exitCode;
-      },
-      (error) => {
-        process.stderr.write(`${JSON.stringify({ error: error.message })}\n`);
-        process.exitCode = 1;
-      },
-    );
+    return emit(wait(parseWait(argv.slice(1))));
+  }
+  if (command === "land") {
+    return emit(land(parseLand(argv.slice(1))));
   }
   if (command === "issue") {
     const options = { full: false, since: null, sections: [] };
@@ -981,7 +1254,7 @@ export function main(argv = process.argv.slice(2)) {
   if (command === "pr") {
     process.stdout.write(`${JSON.stringify(compact(inspect(target)))}\n`);
   } else {
-    merge(target);
+    return emit(merge(target));
   }
 }
 
