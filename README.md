@@ -126,9 +126,12 @@ Run the linked helper with `node ~/.local/share/coding-agent/workctl.mjs scan` f
 is a worker's single last step after opening a PR. It waits for required checks like `wait pr`
 and exits 1 when they go red. On merge-queue repositories it enqueues the PR and confirms
 `isInMergeQueue`, retrying once through the `enqueuePullRequest` mutation. Where auto-merge is
-allowed it runs `gh pr merge --auto --squash`. Elsewhere it merges only when `workctl pr` reports
+allowed it runs `gh pr merge --auto` with the merge method `selectMergeMethod` picks. Elsewhere it
+waits for still-pending checks (bounded by `--timeout`) and merges only when `workctl pr` reports
 `ready`, which includes the Codex blocking-findings check, and otherwise prints the state and
-exits 0. With `--clone`, it deletes `<path>/target` after enqueueing or merging. It deletes the
+exits 0. On truth-core every check on the head, not only the required ones, must be green before
+it merges, enqueues or arms auto-merge; a red check exits 1 as `broken`. With `--wait-review` it
+posts `@codex review` at once when the current head has no review. With `--clone`, it deletes `<path>/target` after enqueueing or merging. It deletes the
 whole clone only once the PR has merged, either during the `--wait-merged` window or on a later
 `--cleanup-only` run, and only when the clone is on the PR branch with a clean
 `git status --porcelain` and nothing in `@{u}..HEAD`. It prints one JSON line. `workctl merge` on
