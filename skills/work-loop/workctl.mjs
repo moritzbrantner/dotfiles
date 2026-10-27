@@ -3,7 +3,7 @@
 import { execFile, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 const DEFAULT_OWNER = "moritzbrantner";
 // Repos that moved to the moenarch-games org; everything else stays under DEFAULT_OWNER.
@@ -465,8 +465,14 @@ function latestStatuses(statusPages) {
 // Repos whose PRs need a completed Codex review of the current head before merging.
 export const CODEX_GATED_REPOS = new Set(["truth-core"]);
 
-function codexGateReason(repo, review) {
+// Repos where land requires every check on the head, not only the required ones, to be green
+// before it merges, enqueues or arms auto-merge.
+export const ALL_CHECKS_GREEN_REPOS = new Set(["truth-core"]);
+
+// Renovate PRs merge on green without a Codex review (owner policy, truth-core#378).
+function codexGateReason(repo, review, pr = null) {
   if (!CODEX_GATED_REPOS.has(repo) || review?.state === "complete") return null;
+  if (review?.state === "skipped" && pr && isRenovate(pr)) return null;
   return `Codex review ${review?.state ?? "absent"} for current head`;
 }
 
@@ -498,7 +504,7 @@ export function classify({ repo, pr, checks, review, blockingFindings, defaultBr
     state = "waiting";
     reasons.push(`pending checks: ${checks.pending.join(", ")}`);
   }
-  const codexReason = codexGateReason(repo, review);
+  const codexReason = codexGateReason(repo, review, pr);
   if (codexReason) {
     if (state !== "broken") {
       state = "waiting";
@@ -797,8 +803,7 @@ export function parseLand(args) {
         if (seconds <= 0) throw new Error(`usage: ${LAND_USAGE}`);
         spec.waitReviewMs = seconds * 1000;
       }
-    }
-    else if ((arg === "--timeout" || arg === "--wait-merged") && value !== undefined) {
+    } else if ((arg === "--timeout" || arg === "--wait-merged") && value !== undefined) {
       const seconds = Number(args[(index += 1)]);
       if (!Number.isFinite(seconds) || seconds < 0 || (arg === "--timeout" && seconds === 0))
         throw new Error(`usage: ${LAND_USAGE}`);
@@ -863,6 +868,8 @@ function landDeps() {
     git: gitIn,
     exists: existsSync,
     remove: (path) => rmSync(path, { recursive: true, force: true }),
+    cwd: () => process.cwd(),
+    chdir: (path) => process.chdir(path),
     now: Date.now,
     cloneRoot: AGENT_WORK_ROOT,
     realPath,
@@ -884,6 +891,13 @@ function cleanClone(spec, pr, deps) {
   if (pr.merged) {
     const reason = cloneKeepReason(spec.clone, pr.headRefName, deps.git);
     if (!reason) {
+      // Never pull the working directory out from under this process (or its later spawns).
+      const cwd = deps.cwd();
+      const same = deps.realPath(cwd) === deps.realPath(spec.clone);
+      if (same || insideRoot(cwd, spec.clone, deps.realPath)) {
+        deps.chdir(dirname(resolve(spec.clone)));
+        clone.leftCwd = cwd;
+      }
       deps.remove(spec.clone);
       return { clone: { ...clone, removed: "clone" } };
     }
@@ -909,15 +923,24 @@ async function awaitMerged(spec, deps) {
 
 /**
  * Waits with backoff (1 min growing to 5 min) until the Codex review of the current head is
- * complete. A review whose state shows no progress for an hour is re-requested once with an
- * `@codex review` comment. Returns `{ status, reviewWait }`, plus `result` when land must stop:
- * `broken` (exit 1) for unanswered blocking findings, `timeout` (exit 2).
+ * complete. Only called for Codex-gated repos. An absent review of the current head is
+ * requested at once with an `@codex review` comment (once per head); a review whose state shows
+ * no progress for an hour is re-requested once. Returns `{ status, reviewWait }`, plus `result`
+ * when land must stop: `broken` (exit 1) for unanswered blocking findings, `timeout` (exit 2).
  */
 async function awaitReview(spec, status, deps) {
   const started = deps.now();
   let lastProgress = started;
   let seen = `${status.head} ${status.review.state}`;
   let requested = false;
+  let stuckRequested = false;
+  const requestedHeads = new Set();
+  const request = () => {
+    const repo = `${status.owner}/${status.repo}`;
+    const args = ["pr", "comment", String(status.number), "-R", repo, "--body", "@codex review"];
+    checked(deps.run(args), "gh pr comment");
+    requested = true;
+  };
   let delay = 60_000;
   const summary = () => ({ waitedSeconds: Math.round((deps.now() - started) / 1000), requested });
   const stop = (exitCode, state) => {
@@ -931,11 +954,13 @@ async function awaitReview(spec, status, deps) {
     }
     const elapsed = deps.now() - started;
     if (elapsed >= spec.waitReviewMs) return { status, result: stop(2, "timeout") };
-    if (!requested && deps.now() - lastProgress >= REVIEW_STUCK_MS) {
-      const repo = `${status.owner}/${status.repo}`;
-      const args = ["pr", "comment", String(status.number), "-R", repo, "--body", "@codex review"];
-      checked(deps.run(args), "gh pr comment");
-      requested = true;
+    if (status.review.state === "absent" && !requestedHeads.has(status.head)) {
+      // No review of this head has started: ask now instead of waiting for the stuck timer.
+      request();
+      requestedHeads.add(status.head);
+    } else if (!stuckRequested && deps.now() - lastProgress >= REVIEW_STUCK_MS) {
+      request();
+      stuckRequested = true;
     }
     await deps.pause(Math.min(delay, spec.waitReviewMs - elapsed));
     delay = Math.min(Math.round(delay * 1.5), 300_000);
@@ -967,12 +992,21 @@ async function landPr(spec, deps) {
     let pr = landed ? prState(spec, deps.run) : null;
     if (pr && !pr.merged && spec.waitMergedMs) pr = await awaitMerged(spec, deps);
     const merged = Boolean(pr?.merged);
+    let cleanup = {};
+    if (landed) {
+      // Cleanup is best effort: a failure is reported but never changes the landing exit code.
+      try {
+        cleanup = cleanClone(spec, pr, deps);
+      } catch (error) {
+        cleanup = { clone: { path: spec.clone, error: error.message } };
+      }
+    }
     return {
       exitCode,
       ...result,
       state: merged ? "merged" : result.state,
       merged,
-      ...(landed ? cleanClone(spec, pr, deps) : {}),
+      ...cleanup,
     };
   };
 
@@ -989,23 +1023,45 @@ async function landPr(spec, deps) {
     return done(0, { pr: `${owner}/${repo}#${number}`, state }, current.merged || queued);
   }
 
-  const checks = await deps.waitChecks({ owner, repo, number, target, timeoutMs: spec.timeoutMs });
-  if (checks.exitCode !== 0) {
+  const waitChecks = async (allChecks) => {
+    const checks = await deps.waitChecks({
+      owner,
+      repo,
+      number,
+      target,
+      timeoutMs: spec.timeoutMs,
+      ...(allChecks ? { allChecks: true } : {}),
+    });
+    if (checks.exitCode === 0) return null;
     const { exitCode, kind: _kind, target: _target, ...rest } = checks;
     return { exitCode, pr: `${owner}/${repo}#${number}`, ...rest, merged: false };
-  }
+  };
+  const required = await waitChecks(false);
+  if (required) return required;
 
   let status = deps.inspect(target);
   let reviewWait = null;
-  if (spec.waitReviewMs && codexGateReason(status.repo, status.review)) {
+  if (spec.waitReviewMs && codexGateReason(status.repo, status.review, status.pr)) {
     const waited = await awaitReview(spec, status, deps);
     if (waited.result) return waited.result;
     ({ status, reviewWait } = waited);
   }
   const waitedFor = reviewWait ? { reviewWait } : {};
   const policy = deps.policy(status.owner, status.repo, status.pr.base.ref);
-  const base = { pr: status.target, head: status.head, ...waitedFor };
   const notReady = () => ({ ...compact(status), merged: false, ...waitedFor });
+  const allGreen = ALL_CHECKS_GREEN_REPOS.has(status.repo);
+  if ((allGreen || (!policy.queue && !policy.autoMerge)) && status.checks.state === "pending") {
+    // A direct merge also waits for non-required checks that still block mergeability (for
+    // example truth-core's comparator jobs). Elsewhere the queue and auto-merge wait on GitHub's
+    // side, but they only wait for required checks, so all-green repos wait here first.
+    const all = await waitChecks(true);
+    if (all) return { ...all, ...(all.exitCode === 1 ? { state: "broken" } : {}), ...waitedFor };
+    status = deps.inspect(target);
+  }
+  if (allGreen && status.checks.state === "failed") {
+    return done(1, { ...notReady(), state: "broken" }, false);
+  }
+  const base = { pr: status.target, head: status.head, ...waitedFor };
 
   if (policy.queue || policy.autoMerge) {
     // CI already ran; the queue or auto-merge handles mergeability, but never land a draft, a
@@ -1016,7 +1072,7 @@ async function landPr(spec, deps) {
       status.pr.draft ||
       status.pr.mergeable === false ||
       status.blockingFindings ||
-      codexGateReason(status.repo, status.review)
+      codexGateReason(status.repo, status.review, status.pr)
     ) {
       return done(0, notReady(), false);
     }
@@ -1037,7 +1093,7 @@ async function landPr(spec, deps) {
       deps.run(
         mergeArgs(status, [
           "--auto",
-          "--squash",
+          policy.method,
           ...(policy.deleteBranch ? ["--delete-branch"] : []),
         ]),
       ),
@@ -1051,7 +1107,11 @@ async function landPr(spec, deps) {
         false,
       );
     }
-    return done(0, { ...base, state: "auto-merge", method: "auto" }, true);
+    return done(
+      0,
+      { ...base, state: "auto-merge", method: "auto", mergeMethod: policy.method.slice(2) },
+      true,
+    );
   }
   if (status.state !== "ready") return done(0, notReady(), false);
   const merged = await merge(target, { ...deps, inspect: () => status, policy: () => policy });
@@ -1204,9 +1264,12 @@ function ghRaw(args) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Checks of a PR as `{ name: bucket }`: required checks, or all checks when none are required. */
-function prChecks(owner, repo, number, run = ghRaw) {
-  for (const extra of [["--required"], []]) {
+/**
+ * Checks of a PR as `{ name: bucket }`: required checks, or all checks when none are required
+ * (or when `all` is set).
+ */
+function prChecks(owner, repo, number, run = ghRaw, all = false) {
+  for (const extra of all ? [[]] : [["--required"], []]) {
     const args = ["pr", "checks", String(number), "-R", `${owner}/${repo}`, ...extra];
     let result = run([...args, "--json", "name,bucket"]);
     let checks = null;
@@ -1258,7 +1321,7 @@ export function waitProbe(
   { run = ghRaw, alive = processAlive, read = readFileSync, elapsedMs = 0 } = {},
 ) {
   if (spec.kind === "pr") {
-    const checks = prChecks(spec.owner, spec.repo, spec.number, run);
+    const checks = prChecks(spec.owner, spec.repo, spec.number, run, Boolean(spec.allChecks));
     const buckets = Object.values(checks);
     if (!buckets.length) {
       return elapsedMs >= 120_000

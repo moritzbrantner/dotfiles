@@ -749,6 +749,14 @@ test("wait pr falls back to all checks when none are required and goes green", a
   assert.equal(result.state, "green");
 });
 
+test("wait pr with allChecks reads every check, not only required ones", async () => {
+  const gh = fakeGh([ok([{ name: "comparator", bucket: "fail" }])]);
+  const spec = { ...parseWait(["pr", "zoo#7"]), allChecks: true };
+  const result = await wait(spec, { run: gh.run, ...clock() });
+  assert.deepEqual([result.exitCode, result.failing], [1, ["comparator"]]);
+  assert.ok(!gh.calls[0].includes("--required"));
+});
+
 test("wait pr times out with exit 2", async () => {
   const pending = () => ok([{ name: "ci", bucket: "pending" }]);
   const gh = { run: pending };
@@ -899,6 +907,8 @@ function landDepsFor(
       ...policy,
     }),
     waitChecks: async () => checks,
+    cwd: () => "/elsewhere",
+    chdir: () => assert.fail("land changed directory although cwd was outside the clone"),
     git: git ?? (() => ({ status: 1, stdout: "" })),
     exists: fs.exists,
     remove: fs.remove,
@@ -963,8 +973,9 @@ test("land --wait-review waits for the Codex review of the current head, then me
   );
   assert.equal(result.exitCode, 0);
   assert.equal(result.state, "merged");
-  assert.deepEqual(result.reviewWait, { waitedSeconds: 285, requested: false });
-  assert.equal(reviewComments(gh).length, 0);
+  assert.deepEqual(result.reviewWait, { waitedSeconds: 285, requested: true });
+  // The absent review was requested at once, not after the one-hour stuck timer.
+  assert.equal(reviewComments(gh).length, 1);
   assert.equal(merges(gh).length, 1);
 });
 
@@ -1151,6 +1162,206 @@ test("land --cleanup-only removes a merged clone only when it has no local work"
   assert.deepEqual(result.clone, { path: "/c", kept: "uncommitted changes", removed: "target" });
   assert.ok(fs.present.has("/c"));
   assert.equal(gh.calls.length, 2);
+});
+
+test("land --wait-review requests an absent review at once, once per head", async () => {
+  const gh = landGh({}, { onMerge: (pr) => void (pr.merged = true) });
+  const inspect = reviewSequence(
+    ["absent"],
+    ["absent"],
+    ["absent", { head: "def456" }],
+    ["complete", { head: "def456" }],
+  );
+  const result = await land(
+    parseLand(["truth-core#5", "--wait-review"]),
+    landDepsFor(gh, { inspect, ...clock() }),
+  );
+  assert.equal(result.state, "merged");
+  assert.equal(result.reviewWait.requested, true);
+  assert.equal(reviewComments(gh).length, 2);
+});
+
+test("Renovate PRs pass the Codex gate on a gated repo; other skipped reviews do not", async () => {
+  const renovate = { login: "renovate[bot]", type: "Bot" };
+  const pr = {
+    state: "open",
+    draft: false,
+    mergeable: true,
+    mergeable_state: "clean",
+    user: renovate,
+  };
+  const ready = {
+    repo: "truth-core",
+    pr,
+    checks: { state: "green", failed: [], pending: [] },
+    review: { state: "skipped" },
+    blockingFindings: 0,
+  };
+  assert.deepEqual(classify(ready), { state: "ready", reasons: [] });
+  assert.deepEqual(classify({ ...ready, pr: { ...pr, user: { login: "o", type: "User" } } }), {
+    state: "waiting",
+    reasons: ["Codex review skipped for current head"],
+  });
+
+  const gh = landGh(
+    {},
+    { onMerge: (state) => void (state.autoMergeRequest = { enabledAt: "now" }) },
+  );
+  const status = landStatus({
+    repo: "truth-core",
+    pr: { ...landStatus().pr, user: renovate },
+    review: { state: "skipped" },
+  });
+  const result = await land(
+    parseLand(["truth-core#5"]),
+    landDepsFor(gh, { status, policy: { autoMerge: true } }),
+  );
+  assert.equal(result.state, "auto-merge");
+  assert.equal(merges(gh).length, 1);
+});
+
+/** `waitChecks` that records each wait and answers from `results` in order. */
+function recordedChecks(...results) {
+  const specs = [];
+  return {
+    specs,
+    waitChecks: async (spec) => {
+      specs.push(spec);
+      return results[Math.min(specs.length - 1, results.length - 1)];
+    },
+  };
+}
+
+const pendingStatus = (overrides = {}) =>
+  landStatus({
+    pr: { ...landStatus().pr, mergeable_state: "blocked" },
+    checks: { state: "pending", failed: [], pending: ["comparator"] },
+    state: "waiting",
+    reasons: ["mergeability blocked", "pending checks: comparator"],
+    ...overrides,
+  });
+
+test("land waits for pending non-required checks before a direct merge; red exits 1", async () => {
+  const green = { exitCode: 0, state: "green" };
+  const gh = landGh({}, { onMerge: (pr) => void (pr.merged = true) });
+  const waits = recordedChecks(green, green);
+  const statuses = [pendingStatus(), landStatus()];
+  const result = await land(
+    parseLand(["dotfiles#5", "--timeout", "900"]),
+    landDepsFor(gh, { inspect: () => statuses.shift(), waitChecks: waits.waitChecks }),
+  );
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.state, "merged");
+  assert.deepEqual(
+    waits.specs.map((spec) => [Boolean(spec.allChecks), spec.timeoutMs]),
+    [
+      [false, 900_000],
+      [true, 900_000],
+    ],
+  );
+
+  const redGh = landGh({});
+  const red = { exitCode: 1, kind: "pr", target: "x", state: "red", failing: ["comparator"] };
+  const redWaits = recordedChecks(green, red);
+  const broken = await land(
+    parseLand(["dotfiles#5"]),
+    landDepsFor(redGh, { status: pendingStatus(), waitChecks: redWaits.waitChecks }),
+  );
+  assert.deepEqual([broken.exitCode, broken.state, broken.failing], [1, "broken", ["comparator"]]);
+  assert.equal(merges(redGh).length, 0);
+});
+
+test("truth-core arms auto-merge with the repo's merge method only once every check is green", async () => {
+  const green = { exitCode: 0, state: "green" };
+  const gated = (overrides = {}) =>
+    pendingStatus({
+      repo: "truth-core",
+      owner: "moritzbrantner",
+      target: "moritzbrantner/truth-core#5",
+      review: { state: "complete" },
+      ...overrides,
+    });
+  const policy = { autoMerge: true, method: "--merge", deleteBranch: true };
+
+  const gh = landGh({}, { onMerge: (pr) => void (pr.autoMergeRequest = { enabledAt: "now" }) });
+  const waits = recordedChecks(green, green);
+  const statuses = [gated(), gated({ checks: { state: "green", failed: [], pending: [] } })];
+  const armed = await land(
+    parseLand(["truth-core#5"]),
+    landDepsFor(gh, { inspect: () => statuses.shift(), waitChecks: waits.waitChecks, policy }),
+  );
+  assert.deepEqual([armed.exitCode, armed.state, armed.mergeMethod], [0, "auto-merge", "merge"]);
+  assert.equal(waits.specs[1].allChecks, true);
+  assert.deepEqual(merges(gh)[0].slice(5), [
+    "--auto",
+    "--merge",
+    "--delete-branch",
+    "--match-head-commit",
+    "abc123",
+  ]);
+
+  // A red non-required check (here already finished) blocks arming auto-merge.
+  const redGh = landGh({});
+  const failed = { state: "failed", failed: ["corpus-explorer (browser, root path)"], pending: [] };
+  const redWaits = recordedChecks(green);
+  const broken = await land(
+    parseLand(["truth-core#5"]),
+    landDepsFor(redGh, {
+      status: gated({ checks: failed }),
+      waitChecks: redWaits.waitChecks,
+      policy,
+    }),
+  );
+  assert.deepEqual([broken.exitCode, broken.state, broken.merged], [1, "broken", false]);
+  assert.equal(redWaits.specs.length, 1);
+  assert.equal(merges(redGh).length, 0);
+
+  // A check that goes red while land waits also blocks it.
+  const lateGh = landGh({});
+  const red = { exitCode: 1, kind: "pr", target: "x", state: "red", failing: ["comparator"] };
+  const late = await land(
+    parseLand(["truth-core#5"]),
+    landDepsFor(lateGh, {
+      status: gated(),
+      waitChecks: recordedChecks(green, red).waitChecks,
+      policy,
+    }),
+  );
+  assert.deepEqual([late.exitCode, late.state], [1, "broken"]);
+  assert.equal(merges(lateGh).length, 0);
+});
+
+test("land leaves a clone it is running inside before deleting it; cleanup never fails a merge", async () => {
+  const git = (_cwd, args) => {
+    const out = { "rev-parse": "/c", "symbolic-ref": "agent/x", status: "", "rev-list": "0" };
+    return { status: 0, stdout: out[args[0]] };
+  };
+  const gh = landGh({ merged: true, state: "MERGED" });
+  const fs = landFs(["/c", "/c/sub"]);
+  const moves = [];
+  const result = await land(
+    parseLand(["dotfiles#5", "--clone", "/c", "--cleanup-only"]),
+    landDepsFor(gh, { fs, git, cwd: () => "/c/sub", chdir: (path) => moves.push(path) }),
+  );
+  assert.equal(result.exitCode, 0);
+  assert.deepEqual(moves, ["/"]);
+  assert.deepEqual(result.clone, { path: "/c", leftCwd: "/c/sub", removed: "clone" });
+  assert.equal(fs.present.size, 0);
+
+  const failing = await land(
+    parseLand(["dotfiles#5", "--clone", "/c", "--cleanup-only"]),
+    landDepsFor(landGh({ merged: true, state: "MERGED" }), {
+      fs: {
+        exists: () => true,
+        remove: () => {
+          throw new Error("EBUSY");
+        },
+      },
+      git,
+    }),
+  );
+  assert.deepEqual([failing.exitCode, failing.state], [0, "merged"]);
+  assert.deepEqual(failing.clone, { path: "/c", error: "EBUSY" });
 });
 
 test("merge on a merge-queue repo confirms the PR entered the queue", async () => {
