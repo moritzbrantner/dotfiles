@@ -923,7 +923,7 @@ async function awaitMerged(spec, deps) {
 
 /**
  * Waits with backoff (1 min growing to 5 min) until the Codex review of the current head is
- * complete. Only called for Codex-gated repos. An absent review of the current head is
+ * complete. Only called for Codex-gated repos. An absent or stale review of the current head is
  * requested at once with an `@codex review` comment (once per head); a review whose state shows
  * no progress for an hour is re-requested once. Returns `{ status, reviewWait }`, plus `result`
  * when land must stop: `broken` (exit 1) for unanswered blocking findings, `timeout` (exit 2).
@@ -954,8 +954,11 @@ async function awaitReview(spec, status, deps) {
     }
     const elapsed = deps.now() - started;
     if (elapsed >= spec.waitReviewMs) return { status, result: stop(2, "timeout") };
-    if (status.review.state === "absent" && !requestedHeads.has(status.head)) {
-      // No review of this head has started: ask now instead of waiting for the stuck timer.
+    if (
+      (status.review.state === "absent" || status.review.state === "stale") &&
+      !requestedHeads.has(status.head)
+    ) {
+      // This head needs a review: ask now instead of waiting for the stuck timer.
       request();
       requestedHeads.add(status.head);
     } else if (!stuckRequested && deps.now() - lastProgress >= REVIEW_STUCK_MS) {

@@ -1164,22 +1164,94 @@ test("land --cleanup-only removes a merged clone only when it has no local work"
   assert.equal(gh.calls.length, 2);
 });
 
-test("land --wait-review requests an absent review at once, once per head", async () => {
+for (const initial of ["absent", "stale"]) {
+  for (const pushed of ["absent", "stale"]) {
+    test(`land --wait-review requests ${initial}, then ${pushed} on a new head, once per head`, async () => {
+      const gh = landGh({}, { onMerge: (pr) => void (pr.merged = true) });
+      const time = clock();
+      const requestsAtPoll = [];
+      const inspect = reviewSequence(
+        [initial],
+        [initial],
+        [initial === "absent" ? "stale" : "absent"],
+        [pushed, { head: "def456" }],
+        [pushed, { head: "def456" }],
+        ["running", { head: "def456" }],
+        ["complete", { head: "def456" }],
+      );
+      const result = await land(
+        parseLand(["truth-core#5", "--wait-review"]),
+        landDepsFor(gh, {
+          inspect,
+          ...time,
+          pause: async (ms) => {
+            requestsAtPoll.push(reviewComments(gh).length);
+            await time.pause(ms);
+          },
+        }),
+      );
+      assert.equal(result.state, "merged");
+      assert.equal(result.reviewWait.requested, true);
+      // Each head is requested before its first pause; repeated polls do not request again.
+      assert.deepEqual(requestsAtPoll, [1, 1, 1, 2, 2, 2]);
+      assert.deepEqual(
+        reviewComments(gh),
+        Array.from({ length: 2 }, () => [
+          "pr",
+          "comment",
+          "5",
+          "-R",
+          "moritzbrantner/truth-core",
+          "--body",
+          "@codex review",
+        ]),
+      );
+      assert.equal(merges(gh).length, 1);
+    });
+  }
+}
+
+test("land --wait-review does not request an already completed review", async () => {
   const gh = landGh({}, { onMerge: (pr) => void (pr.merged = true) });
-  const inspect = reviewSequence(
-    ["absent"],
-    ["absent"],
-    ["absent", { head: "def456" }],
-    ["complete", { head: "def456" }],
-  );
+  const time = clock();
   const result = await land(
     parseLand(["truth-core#5", "--wait-review"]),
-    landDepsFor(gh, { inspect, ...clock() }),
+    landDepsFor(gh, { inspect: reviewSequence(["complete"]), ...time }),
   );
   assert.equal(result.state, "merged");
-  assert.equal(result.reviewWait.requested, true);
-  assert.equal(reviewComments(gh).length, 2);
+  assert.equal(result.reviewWait, undefined);
+  assert.equal(reviewComments(gh).length, 0);
+  assert.equal(time.now(), 0);
+  assert.equal(merges(gh).length, 1);
 });
+
+for (const state of ["absent", "stale"]) {
+  test(`land --wait-review preserves the one-time stuck retry when review stays ${state}`, async () => {
+    const gh = landGh({});
+    const time = clock();
+    const requests = [];
+    const result = await land(
+      parseLand(["truth-core#5", "--wait-review"]),
+      landDepsFor(gh, {
+        inspect: reviewSequence([state]),
+        ...time,
+        run: (args) => {
+          if (args[0] === "pr" && args[1] === "comment") requests.push(time.now());
+          return gh.run(args);
+        },
+      }),
+    );
+    assert.deepEqual(
+      [result.exitCode, result.state, result.reviewWait.requested],
+      [2, "timeout", true],
+    );
+    assert.equal(requests.length, 2);
+    assert.equal(requests[0], 0);
+    assert.ok(requests[1] >= 3600_000 && requests[1] < 3900_000);
+    assert.equal(reviewComments(gh).length, 2);
+    assert.equal(merges(gh).length, 0);
+  });
+}
 
 test("Renovate PRs pass the Codex gate on a gated repo; other skipped reviews do not", async () => {
   const renovate = { login: "renovate[bot]", type: "Bot" };

@@ -131,7 +131,8 @@ waits for still-pending checks (bounded by `--timeout`) and merges only when `wo
 `ready`, which includes the Codex blocking-findings check, and otherwise prints the state and
 exits 0. On truth-core every check on the head, not only the required ones, must be green before
 it merges, enqueues or arms auto-merge; a red check exits 1 as `broken`. With `--wait-review` it
-posts `@codex review` at once when the current head has no review. With `--clone`, it deletes `<path>/target` after enqueueing or merging. It deletes the
+posts `@codex review` at once (once per head) when the current head's review is absent or stale.
+With `--clone`, it deletes `<path>/target` after enqueueing or merging. It deletes the
 whole clone only once the PR has merged, either during the `--wait-merged` window or on a later
 `--cleanup-only` run, and only when the clone is on the PR branch with a clean
 `git status --porcelain` and nothing in `@{u}..HEAD`. It prints one JSON line. `workctl merge` on
