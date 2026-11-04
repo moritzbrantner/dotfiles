@@ -23,6 +23,28 @@ symlink **before creating links**, leaves correctly installed links alone, and i
 idempotent. It never installs packages, fetches dependencies, publishes, or auto-installs
 VS Code extensions. Preview never changes files.
 
+## Optional recursive mise installation
+
+To install recommended CLI tools across many local project folders, first preview the
+configurations found below the directory containing your checkouts:
+
+```sh
+node scripts/install-mise-recursive.mjs /path/to/projects
+node scripts/install-mise-recursive.mjs --apply /path/to/projects
+```
+
+The command is independent of the bootstrap. It scans recursively for `mise.toml`,
+`.mise.toml`, and their local/environment variants, plus project-scoped `mise/config.toml`
+or `.mise/config.toml` (including `.config/mise` and `conf.d` fragments). It skips symlinks,
+generated and third-party directories, and
+installs once per discovered project using the existing `mise` on `PATH`. It does not
+install `mise`, add shell hooks, implicitly trust configurations, or change language
+toolchain declarations. A failed installation is reported and does not prevent trying
+the remaining projects. Use `MISE_ENV=dev` to select an environment-specific config.
+
+Asdf `.tool-versions`-only projects are excluded by default to avoid unexpectedly
+installing language runtimes; add `--include-tool-versions` when that is intentional.
+
 It also sets up the tracked **personal VS Code preferences**:
 
 - Native Linux: `~/.config/Code/User/settings.json` (or `$XDG_CONFIG_HOME/Code/User/settings.json`).
