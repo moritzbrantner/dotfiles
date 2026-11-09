@@ -157,7 +157,11 @@ posts `@codex review` at once (once per head) when the current head's review is 
 With `--clone`, it deletes `<path>/target` after enqueueing or merging. It deletes the
 whole clone only once the PR has merged, either during the `--wait-merged` window or on a later
 `--cleanup-only` run, and only when the clone is on the PR branch with a clean
-`git status --porcelain` and nothing in `@{u}..HEAD`. It prints one JSON line. `workctl merge` on
+`git status --porcelain` and nothing in `@{u}..HEAD`. If GitHub removes a queued PR from the queue
+during `--wait-merged` (open, unmerged and out of the queue for a minute), `land` stops with
+`state: "ejected"`, `merged: false` and exit 1, adds the removal `reason` and the failing
+merge-group `runId` and `runUrl` when available, leaves the clone untouched and does not re-enqueue.
+It prints one JSON line. `workctl merge` on
 a merge-queue repository also confirms that the PR entered the queue.
 The helper requires Node.js 22.18+ on the 22.x line or Node.js 24.2+ on newer lines for native
 ESM entry-point detection (`import.meta.main`). Symlink invocation needs no launcher. Importing

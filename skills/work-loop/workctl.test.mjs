@@ -845,7 +845,7 @@ function landStatus(overrides = {}) {
 }
 
 /** Fake gh for land/merge: tracks one PR; `onMerge`/`onEnqueue` mutate it like GitHub would. */
-function landGh(pr, { onMerge = () => {}, onEnqueue = () => {} } = {}) {
+function landGh(pr, { onMerge = () => {}, onEnqueue = () => {}, removal, runs = [] } = {}) {
   const state = {
     id: "PR_1",
     state: "OPEN",
@@ -862,6 +862,11 @@ function landGh(pr, { onMerge = () => {}, onEnqueue = () => {} } = {}) {
     const query = args.find((arg) => arg.startsWith("query=")) ?? "";
     if (args[0] === "pr" && args[1] === "merge") onMerge(state, args);
     else if (query.includes("enqueuePullRequest")) onEnqueue(state, args);
+    else if (args[0] === "run" && args[1] === "list") return ok(runs);
+    else if (query.includes("RemovedFromMergeQueueEvent"))
+      return ok({
+        data: { repository: { pullRequest: { timelineItems: { nodes: [removal] } } } },
+      });
     else if (query.includes("pullRequest(number"))
       return ok({ data: { repository: { pullRequest: { ...state } } } });
     return ok({});
@@ -1068,6 +1073,127 @@ test("land exits 1 when the merge queue never accepts the PR, keeping target", a
   assert.equal(result.state, "not-queued");
   assert.equal(result.clone, undefined);
   assert.ok(fs.present.has("/c/target"));
+});
+
+/** Deps for a queue land under `--wait-merged`; `onPoll(pr, ms)` runs once per 30 s poll. */
+function queueWaitDeps(gh, fs, onPoll = () => {}) {
+  let clock = 0;
+  return landDepsFor(gh, {
+    policy: { queue: true },
+    fs,
+    now: () => clock,
+    pause: async (ms) => {
+      clock += ms;
+      onPoll(gh.state, clock);
+    },
+  });
+}
+
+const QUEUED_WAIT_ARGS = ["mmorpg#5", "--clone", "/c", "--wait-merged", "3000"];
+const enqueueOnMerge = (pr) => void (pr.isInMergeQueue = true);
+
+test("land reports a PR ejected from the queue while waiting and keeps the clone", async () => {
+  const gh = landGh(
+    {},
+    {
+      onMerge: enqueueOnMerge,
+      removal: { reason: "failed_checks", beforeCommit: { oid: "mergegroup1" } },
+      runs: [
+        { databaseId: 41, url: "https://example.test/runs/41", conclusion: "success" },
+        { databaseId: 42, url: "https://example.test/runs/42", conclusion: "failure" },
+      ],
+    },
+  );
+  const fs = landFs(["/c", "/c/target"]);
+  const result = await land(
+    parseLand(QUEUED_WAIT_ARGS),
+    queueWaitDeps(gh, fs, (pr, clock) => {
+      if (clock >= 300_000) pr.isInMergeQueue = false;
+    }),
+  );
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.state, "ejected");
+  assert.equal(result.merged, false);
+  assert.equal(result.reason, "removed from the merge queue: failed_checks");
+  assert.equal(result.runId, 42);
+  assert.equal(result.runUrl, "https://example.test/runs/42");
+  assert.equal(result.clone, undefined);
+  assert.deepEqual([...fs.present], ["/c", "/c/target"]);
+  assert.equal(merges(gh).length, 1, "ejection must not re-enqueue");
+  const runList = gh.calls.find((args) => args[0] === "run" && args[1] === "list");
+  assert.deepEqual(runList.slice(4, 8), ["--commit", "mergegroup1", "--event", "merge_group"]);
+});
+
+test("land still reports an ejection when the merge-group run cannot be found", async () => {
+  const gh = landGh({}, { onMerge: enqueueOnMerge });
+  const fs = landFs(["/c"]);
+  const result = await land(
+    parseLand(QUEUED_WAIT_ARGS),
+    queueWaitDeps(gh, fs, (pr) => void (pr.isInMergeQueue = false)),
+  );
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.state, "ejected");
+  assert.equal(result.reason, "removed from the merge queue");
+  assert.equal(result.runId, undefined);
+});
+
+test("land still reports merged when a queued PR merges while waiting", async () => {
+  const gh = landGh({}, { onMerge: enqueueOnMerge });
+  const fs = landFs(["/c", "/c/target"]);
+  const result = await land(
+    parseLand(QUEUED_WAIT_ARGS),
+    queueWaitDeps(gh, fs, (pr, clock) => {
+      if (clock >= 120_000) Object.assign(pr, { isInMergeQueue: false, merged: true });
+    }),
+  );
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.state, "merged");
+  assert.equal(result.merged, true);
+});
+
+test("land does not misread a PR briefly out of the queue during the grace period", async () => {
+  // Out of the queue on the first polls, back in by the second, then merged: never ejected.
+  const gh = landGh({}, { onMerge: enqueueOnMerge });
+  const fs = landFs(["/c"]);
+  const result = await land(
+    parseLand(QUEUED_WAIT_ARGS),
+    queueWaitDeps(gh, fs, (pr, clock) => {
+      if (clock < 60_000) pr.isInMergeQueue = false;
+      else if (clock < 150_000) pr.isInMergeQueue = true;
+      else Object.assign(pr, { isInMergeQueue: false, merged: true });
+    }),
+  );
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.state, "merged");
+});
+
+test("land without --wait-merged reports queued even when the PR leaves the queue", async () => {
+  const gh = landGh({}, { onMerge: enqueueOnMerge });
+  const result = await land(
+    parseLand(["mmorpg#5", "--clone", "/c"]),
+    landDepsFor(gh, { policy: { queue: true }, fs: landFs(["/c"]) }),
+  );
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.state, "queued");
+});
+
+test("land does not treat auto-merge as a queue ejection while waiting", async () => {
+  const gh = landGh(
+    {},
+    { onMerge: (pr) => void (pr.autoMergeRequest = { enabledAt: "2026-11-09T00:00:00Z" }) },
+  );
+  let clock = 0;
+  const result = await land(
+    parseLand(["dotfiles#5", "--clone", "/c", "--wait-merged", "120"]),
+    landDepsFor(gh, {
+      policy: { autoMerge: true },
+      fs: landFs(["/c"]),
+      now: () => clock,
+      pause: async (ms) => void (clock += ms),
+    }),
+  );
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.state, "auto-merge");
 });
 
 test("land stops on red checks without merging", async () => {
