@@ -673,6 +673,16 @@ const PR_STATE_QUERY = `query($owner: String!, $repo: String!, $number: Int!) {
   }
 }`;
 
+const QUEUE_REMOVAL_QUERY = `query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      timelineItems(last: 1, itemTypes: [REMOVED_FROM_MERGE_QUEUE_EVENT]) {
+        nodes { ... on RemovedFromMergeQueueEvent { reason beforeCommit { oid } } }
+      }
+    }
+  }
+}`;
+
 const ENQUEUE_MUTATION = `mutation($id: ID!, $head: GitObjectID) {
   enqueuePullRequest(input: { pullRequestId: $id, expectedHeadOid: $head }) {
     mergeQueueEntry { state }
@@ -781,6 +791,9 @@ export const AGENT_WORK_ROOT = join(homedir(), ".cache", "agent-work");
 const WAIT_REVIEW_DEFAULT_MS = 7200_000;
 // A Codex review that shows no progress this long is re-requested once.
 const REVIEW_STUCK_MS = 3600_000;
+// A queued PR must stay out of the queue this long before land reports it ejected, so GitHub's
+// state can settle right after enqueueing and during the merge itself.
+const QUEUE_EJECTION_GRACE_MS = 60_000;
 
 export function parseLand(args) {
   const spec = {
@@ -911,14 +924,48 @@ function cleanClone(spec, pr, deps) {
   return { clone };
 }
 
-async function awaitMerged(spec, deps) {
+/**
+ * Polls until the PR merges, closes or `--wait-merged` runs out. With `watchQueue`, a PR that
+ * stays open and outside the merge queue for the whole grace period is returned as `ejected`.
+ */
+async function awaitMerged(spec, deps, { watchQueue = false } = {}) {
   const started = deps.now();
+  let outOfQueueSince = null;
   let pr = prState(spec, deps.run);
   while (!pr.merged && pr.state === "OPEN" && deps.now() - started < spec.waitMergedMs) {
+    if (watchQueue) {
+      outOfQueueSince = pr.isInMergeQueue ? null : (outOfQueueSince ?? deps.now());
+      if (outOfQueueSince !== null && deps.now() - outOfQueueSince >= QUEUE_EJECTION_GRACE_MS) {
+        return { ...pr, ejected: true };
+      }
+    }
     await deps.pause(Math.min(30_000, Math.max(spec.waitMergedMs - (deps.now() - started), 0)));
     pr = prState(spec, deps.run);
   }
   return pr;
+}
+
+/** Why GitHub removed the PR from the queue and its merge-group run. Best effort: never throws. */
+function ejectionDetails({ owner, repo, number }, run) {
+  const details = { reason: "removed from the merge queue" };
+  try {
+    const args = ["api", "graphql", "-f", `query=${QUEUE_REMOVAL_QUERY}`];
+    args.push("-F", `owner=${owner}`, "-F", `repo=${repo}`, "-F", `number=${number}`);
+    const removal = JSON.parse(checked(run(args), "gh api graphql"))?.data?.repository?.pullRequest
+      ?.timelineItems?.nodes?.[0];
+    if (removal?.reason) details.reason = `removed from the merge queue: ${removal.reason}`;
+    const commit = removal?.beforeCommit?.oid;
+    if (!commit) return details;
+    const list = ["run", "list", "-R", `${owner}/${repo}`, "--commit", commit];
+    list.push("--event", "merge_group", "--limit", "20", "--json", "databaseId,url,conclusion");
+    const runs = JSON.parse(checked(run(list), "gh run list"));
+    const failing =
+      runs.find((entry) => entry.conclusion && !PASS.has(entry.conclusion)) ??
+      runs.find((entry) => !entry.conclusion);
+    return failing ? { ...details, runId: failing.databaseId, runUrl: failing.url } : details;
+  } catch {
+    return details;
+  }
 }
 
 /**
@@ -980,8 +1027,9 @@ async function awaitReview(spec, status, deps) {
  * The worker's last step after opening a PR: wait for required checks (and, with
  * `--wait-review` on a Codex-gated repo, the review of the current head), then enqueue (merge
  * queue), enable auto-merge, or merge when `workctl pr` says ready; then clean the clone.
- * Returns one result object with `exitCode` (0 landed or left waiting, 1 red, rejected or
- * blocking findings, 2 check or review timeout). Never deletes outside `~/.cache/agent-work`.
+ * Returns one result object with `exitCode` (0 landed or left waiting, 1 red, rejected, ejected
+ * from the queue while waiting or blocking findings, 2 check or review timeout). Never deletes
+ * outside `~/.cache/agent-work`.
  */
 export async function land(spec, deps = landDeps()) {
   const result = await landPr(spec, deps);
@@ -991,9 +1039,14 @@ export async function land(spec, deps = landDeps()) {
 
 async function landPr(spec, deps) {
   const { target, owner, repo, number } = spec;
-  const done = async (exitCode, result, landed) => {
+  const done = async (exitCode, result, landed, waitOptions) => {
     let pr = landed ? prState(spec, deps.run) : null;
-    if (pr && !pr.merged && spec.waitMergedMs) pr = await awaitMerged(spec, deps);
+    if (pr && !pr.merged && spec.waitMergedMs) pr = await awaitMerged(spec, deps, waitOptions);
+    if (pr?.ejected) {
+      // Not merged, so the clone (including target/) stays for the repair or retry.
+      const details = ejectionDetails(spec, deps.run);
+      return { exitCode: 1, ...result, state: "ejected", merged: false, ...details };
+    }
     const merged = Boolean(pr?.merged);
     let cleanup = {};
     if (landed) {
@@ -1089,7 +1142,7 @@ async function landPr(spec, deps) {
         false,
       );
     }
-    return done(0, { ...base, state: "queued", method: "queue" }, true);
+    return done(0, { ...base, state: "queued", method: "queue" }, true, { watchQueue: true });
   }
   if (policy.autoMerge) {
     checked(
