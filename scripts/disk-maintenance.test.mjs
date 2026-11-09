@@ -85,7 +85,7 @@ function maintain(f, apply = false) {
   const report = JSON.parse(result.stdout);
   assert.ok(Array.isArray(report.actions));
   for (const action of report.actions) {
-    assert.ok(["remove", "skip"].includes(action.action));
+    assert.ok(["remove", "skip", "trim"].includes(action.action));
     assert.equal(typeof action.reason, "string");
   }
   return report.actions;
@@ -184,6 +184,115 @@ test("low free space can remove quiet younger outputs but preserves recent build
   maintain(f, true);
   assert.equal(existsSync(quiet), false);
   assert.ok(existsSync(recent));
+});
+
+const megabyte = 1048576;
+
+function oversizedProject(f, name) {
+  const target = cargoTarget(f, name, 0);
+  writeFileSync(join(target, "debug", ".cargo-lock"), "");
+  return target;
+}
+
+function buildUnits(target, name, ageDays, bytes = megabyte) {
+  const hash = "0123456789abcdef";
+  const deps = join(target, "debug", "deps");
+  mkdirSync(deps, { recursive: true });
+  const files = [`lib${name}-${hash}.rlib`, `${name}-${hash}.d`].map((file) => join(deps, file));
+  const age = new Date(Date.now() - ageDays * day);
+  writeFileSync(files[0], Buffer.alloc(bytes, 1));
+  writeFileSync(files[1], "dep-info");
+  for (const file of files) utimesSync(file, age, age);
+  const session = join(target, "debug", "incremental", `${name}-${hash}`, "s-1");
+  mkdirSync(session, { recursive: true });
+  writeFileSync(join(session, "work.bin"), Buffer.alloc(bytes, 1));
+  ageTree(dirname(session), ageDays);
+  return [...files, dirname(session)];
+}
+
+test("trimming evicts stale units despite a process in the checkout and keeps recent ones", async (t) => {
+  const f = fixture(t, { trimAboveBytes: 1, trimToBytes: 1 });
+  const target = oversizedProject(f, "hot");
+  const stale = buildUnits(target, "stale", 3);
+  const recent = buildUnits(target, "recent", 0);
+  await sleeper(t, f, { cwd: dirname(target) });
+  const actions = maintain(f, true);
+  assert.ok(actions.some((action) => action.path === target && action.action === "trim"));
+  for (const item of stale) assert.equal(existsSync(item), false, item);
+  for (const item of recent) assert.ok(existsSync(item), item);
+});
+
+test("trimming evicts oldest first and stops at its size goal", (t) => {
+  const f = fixture(t, { trimAboveBytes: 3 * megabyte, trimToBytes: 2.5 * megabyte });
+  const target = oversizedProject(f, "bounded");
+  const oldest = buildUnits(target, "oldest", 4);
+  const newer = buildUnits(target, "newer", 3);
+  maintain(f, true);
+  for (const item of oldest) assert.equal(existsSync(item), false, item);
+  for (const item of newer) assert.ok(existsSync(item), item);
+});
+
+test("a preview reports a trim without removing build units", (t) => {
+  const f = fixture(t, { trimAboveBytes: 1, trimToBytes: 1 });
+  const target = oversizedProject(f, "preview");
+  const stale = buildUnits(target, "stale", 3);
+  const actions = maintain(f, false);
+  assert.ok(actions.some((action) => action.path === target && action.action === "trim"));
+  for (const item of stale) assert.ok(existsSync(item), item);
+});
+
+test("a running Cargo build or binary in the target prevents trimming", async (t) => {
+  const f = fixture(t, { trimAboveBytes: 1, trimToBytes: 1 });
+  const locked = oversizedProject(f, "locked");
+  const lockedUnits = buildUnits(locked, "stale", 3);
+  const lock = join(locked, "debug", ".cargo-lock");
+  const holder = spawn(
+    "python3",
+    ["-c", "import fcntl,sys,time; f=open(sys.argv[1]); fcntl.flock(f,fcntl.LOCK_EX); print('ready',flush=True); time.sleep(60)", lock],
+    { stdio: ["ignore", "pipe", "pipe"] },
+  );
+  t.after(() => holder.kill("SIGKILL"));
+  let ready = false;
+  holder.stdout.on("data", () => {
+    ready = true;
+  });
+  await waitFor(() => ready, "lock holder did not become ready");
+  const running = oversizedProject(f, "running");
+  const runningUnits = buildUnits(running, "stale", 3);
+  await sleeper(t, f, { args: [join(running, "debug", "output")] });
+  const report = invoke(f, ["maintain", "--config", f.config, "--apply"]);
+  assert.equal(report.status, 0, report.stderr);
+  const actions = JSON.parse(report.stdout).actions;
+  assert.equal(actions.find((action) => action.path === locked).reason, "Cargo build in progress");
+  assert.match(actions.find((action) => action.path === running).reason, /^active process/);
+  for (const item of [...lockedUnits, ...runningUnits]) assert.ok(existsSync(item), item);
+});
+
+test("free-space pressure honors its shorter quiet window", (t) => {
+  const f = fixture(t, {
+    minFreeBytes: Number.MAX_SAFE_INTEGER,
+    restoreFreeBytes: Number.MAX_SAFE_INTEGER,
+    pressureQuietHours: 1,
+  });
+  const quiet = cargoTarget(f, "quiet", 2 / 24);
+  const recent = cargoTarget(f, "recent", 0);
+  maintain(f, true);
+  assert.equal(existsSync(quiet), false);
+  assert.ok(existsSync(recent));
+});
+
+test("a standalone target directly under a root is not protected by its sibling scratch work", async (t) => {
+  const f = fixture(t, { minFreeBytes: Number.MAX_SAFE_INTEGER, restoreFreeBytes: Number.MAX_SAFE_INTEGER });
+  const scratch = join(f.workspace, "mmorpg-528-target");
+  mkdirSync(join(scratch, "debug"), { recursive: true });
+  writeFileSync(join(scratch, ".rustc_info.json"), "{}");
+  ageTree(scratch, 2);
+  const sibling = join(f.workspace, "sibling-clone");
+  mkdirSync(sibling);
+  await sleeper(t, f, { cwd: sibling });
+  maintain(f, true);
+  assert.equal(existsSync(scratch), false);
+  assert.ok(existsSync(sibling));
 });
 
 test("symlink targets and symlinked checkout ancestors never authorize deletion outside roots", (t) => {
@@ -386,7 +495,7 @@ test("installer defaults to preview with no configuration writes or service call
   assert.equal(existsSync(f.systemctlLog), false);
 });
 
-test("installation persists conservative cleanup configuration and enables a daily user timer", (t) => {
+test("installation persists conservative cleanup configuration and enables a frequent user timer", (t) => {
   const f = installerFixture(t);
   const result = invoke(f, ["install", "--workspace", f.workspace, "--apply"]);
   assert.equal(result.status, 0, result.stderr);
@@ -399,6 +508,7 @@ test("installation persists conservative cleanup configuration and enables a dai
   for (const path of [
     f.workspace,
     join(f.home, "worktrees"),
+    join(f.home, ".cache/agent-work"),
     join(f.home, ".cache/coding-tooling"),
     join(f.home, ".cache/physics-queue"),
     join(f.home, ".local/share/coding-agent"),
@@ -413,7 +523,7 @@ test("installation persists conservative cleanup configuration and enables a dai
     join(f.home, ".config/systemd/user/coding-agent-disk-maintenance.timer"),
     "utf8",
   );
-  assert.match(timer, /OnCalendar=daily/);
+  assert.match(timer, /OnCalendar=\*:0\/15/);
   assert.match(timer, /Persistent=true/);
   const service = readFileSync(
     join(f.home, ".config/systemd/user/coding-agent-disk-maintenance.service"),

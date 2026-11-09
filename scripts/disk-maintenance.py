@@ -7,6 +7,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import shutil
 import signal
 import subprocess
@@ -17,9 +18,11 @@ import time
 GIB = 1024**3
 DEFAULTS = dict(schemaVersion=1, roots=[], maxAgeDays=7, maxTargetBytes=10 * GIB,
                 quietHours=24, minFreeBytes=50 * GIB, restoreFreeBytes=75 * GIB,
-                packageCaches=True, cacheMaxBytes=GIB)
+                packageCaches=True, cacheMaxBytes=GIB, pressureQuietHours=1,
+                trimAboveBytes=40 * GIB, trimToBytes=30 * GIB, warnFreeBytes=0)
 UNIT = "coding-agent-disk-maintenance"
 PRUNE_DIRS = {".git", "node_modules", ".venv", "venv", "__pycache__"}
+DEPS_UNIT = re.compile(r"(?:lib)?(.+-[0-9a-f]{16})(?:\..+)?")
 
 
 def home_path():
@@ -54,7 +57,8 @@ def read_config(path, home):
     if not all(isinstance(root, str) for root in config["roots"]):
         raise ValueError("roots must contain path strings")
     for key in ("maxAgeDays", "maxTargetBytes", "quietHours", "minFreeBytes",
-                "restoreFreeBytes", "cacheMaxBytes"):
+                "restoreFreeBytes", "cacheMaxBytes", "pressureQuietHours", "trimAboveBytes",
+                "trimToBytes", "warnFreeBytes"):
         value = config[key]
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
             raise ValueError(f"{key} must be a finite nonnegative number")
@@ -62,6 +66,8 @@ def read_config(path, home):
         raise ValueError("packageCaches must be boolean")
     if config["restoreFreeBytes"] < config["minFreeBytes"]:
         raise ValueError("restoreFreeBytes must be at least minFreeBytes")
+    if config["trimToBytes"] > config["trimAboveBytes"]:
+        raise ValueError("trimToBytes must be at most trimAboveBytes")
     config["roots"] = sorted({str(safe_path(root, home)) for root in config["roots"]})
     return config
 
@@ -237,6 +243,52 @@ def remove_output(path, identity, home):
         os.close(fd)
 
 
+def eviction_units(locks):
+    """Oldest first: one crate version's deps files, or one incremental session directory."""
+    units = {}
+    for profile in (lock.parent for lock in locks):
+        incremental = profile / "incremental"
+        for item in incremental.iterdir() if incremental.is_dir() else ():
+            if item.is_dir():
+                newest, size, _ = inventory(item)
+                units[item] = [newest, size, [item]]
+        deps = profile / "deps"
+        for item in deps.iterdir() if deps.is_dir() else ():
+            match = DEPS_UNIT.fullmatch(item.name)
+            if match and item.is_file():
+                stat = item.lstat()
+                unit = units.setdefault(deps / match[1], [0, 0, []])
+                unit[0] = max(unit[0], stat.st_mtime)
+                unit[1] += stat.st_blocks * 512
+                unit[2].append(item)
+    return sorted(units.values(), key=lambda unit: unit[0])
+
+
+def trim_output(path, size, locks, config, action, apply):
+    """Evict the oldest build units of a live target while holding Cargo's build locks."""
+    with ExitStack() as stack:
+        for lock in locks:
+            fd = stack.enter_context(open(lock, "rb"))
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        busy = in_use(path, processes())
+        if busy:
+            action["reason"] = f"active process {busy}"
+            return
+        excess, freed = size - config["trimToBytes"], 0
+        cutoff = time.time() - config["pressureQuietHours"] * 3600
+        for newest, unit_size, items in eviction_units(locks):
+            if freed >= excess or newest >= cutoff:
+                break
+            if apply:
+                for item in items:
+                    shutil.rmtree(item) if item.is_dir() else item.unlink()
+            freed += unit_size
+    if freed:
+        action.update(action="trim", reason="oversized output trimmed oldest first", freedBytes=freed)
+    else:
+        action["reason"] = "oversized output holds only recent build units"
+
+
 def maintenance(config, apply, home):
     actions, errors = [], []
     candidates = []
@@ -249,6 +301,7 @@ def maintenance(config, apply, home):
         except (OSError, ValueError) as error:
             actions.append(dict(path=str(path), action="skip", reason=str(error)))
     pressured_devices = set()
+    snapshot = processes()  # Only selects candidates; deletion rechecks a fresh snapshot.
     for newest, name, size, locks in sorted(candidates):
         path = Path(name)
         free = shutil.disk_usage(path).free
@@ -261,19 +314,20 @@ def maintenance(config, apply, home):
         reason = None
         if age >= config["maxAgeDays"] * 86400:
             reason = "expired output"
-        elif age >= config["quietHours"] * 3600:
-            if size > config["maxTargetBytes"]:
-                reason = "oversized quiet output"
-            elif device in pressured_devices:
-                reason = "free-space reserve"
+        elif age >= config["quietHours"] * 3600 and size > config["maxTargetBytes"]:
+            reason = "oversized quiet output"
+        elif device in pressured_devices and age >= config["pressureQuietHours"] * 3600:
+            reason = "free-space reserve"
         action = dict(path=name, action="skip", reason=reason or "recent output", bytes=size)
         try:
             scope, protected = git_guard(path)
+            if str(scope) in config["roots"]:
+                scope = path  # A collection directory is not this output's checkout.
             owner = owned_run(path)
             if owner and process_start(owner["pid"]) is not None and (
                     "startTime" not in owner or process_start(owner["pid"]) == owner["startTime"]):
                 protected = "live verification owner"
-            busy = in_use(scope, processes())
+            busy = in_use(scope, snapshot)
             if protected or busy:
                 action["reason"] = protected or f"active process {busy}"
             elif reason:
@@ -293,14 +347,30 @@ def maintenance(config, apply, home):
                         action["action"] = "remove"
                     else:
                         action["action"] = "remove"
+            if action["action"] == "skip" and not protected and size > config["trimAboveBytes"]:
+                trim_output(path, size, locks, config, action, apply)
+        except BlockingIOError:
+            action["reason"] = "Cargo build in progress"
         except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
             action["reason"] = f"inspection refused: {error}"
             errors.append(dict(path=name, error=str(error)))
         actions.append(action)
-    if config["packageCaches"]:
+    if config["packageCaches"] and package_maintenance_due(config, apply, home):
         package_maintenance(config, apply, home, actions, errors)
     return dict(schemaVersion=1, applied=apply, actions=actions, errors=errors,
                 freeBytes=shutil.disk_usage(home).free)
+
+
+def package_maintenance_due(config, apply, home):
+    """Package caches are warm and cheap to keep: daily, or immediately under pressure."""
+    stamp = safe_path(home / ".cache/coding-agent-builds/.package-maintenance", home)
+    pressured = shutil.disk_usage(home).free < config["minFreeBytes"]
+    if not pressured and stamp.exists() and time.time() - stamp.stat().st_mtime < 86400:
+        return False
+    if apply:
+        stamp.parent.mkdir(parents=True, exist_ok=True)
+        stamp.touch()
+    return True
 
 
 def package_maintenance(config, apply, home, actions, errors):
@@ -403,7 +473,8 @@ def install(workspaces, apply, home):
     source = Path(__file__).resolve()
     repository = source.parent.parent
     path = config_path(home)
-    roots = [*workspaces, str(home / "worktrees"), str(home / ".cache/coding-tooling"),
+    roots = [*workspaces, str(home / "worktrees"), str(home / ".cache/agent-work"),
+             str(home / ".cache/coding-tooling"),
              str(home / ".cache/physics-queue"), str(home / ".local/share/coding-agent"),
              str(home / ".cache/coding-agent-builds"),
              str(Path(os.environ.get("XDG_CACHE_HOME", home / ".cache")) / "coding-agent-builds")]
@@ -478,6 +549,9 @@ def main():
             stack.callback(os.close, fd)
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         report = maintenance(config, args.apply, home)
+    if args.apply and report["freeBytes"] < config["warnFreeBytes"]:
+        subprocess.run(["notify-send", "-u", "critical", "Disk space low",
+                        f"Only {report['freeBytes'] // GIB} GiB free after cleanup"], check=False)
     print(json.dumps(report))
     return 1 if report["errors"] else 0
 
