@@ -1,10 +1,10 @@
 [Unit]
-Description=Daily development disk maintenance
+Description=Frequent development disk maintenance
 
 [Timer]
-OnCalendar=daily
+OnCalendar=*:0/15
 Persistent=true
-RandomizedDelaySec=15min
+RandomizedDelaySec=2min
 
 [Install]
 WantedBy=timers.target

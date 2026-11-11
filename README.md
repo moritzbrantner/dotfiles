@@ -183,7 +183,7 @@ python3 scripts/disk-maintenance.py install --workspace "$HOME/moritzbrantner" -
 ```
 
 The command defaults to a preview without `--apply`. It installs links to this repository
-and enables a daily persistent user timer. Configuration stays in
+and enables a persistent user timer that runs every 15 minutes. Configuration stays in
 `~/.config/coding-agent/disk-maintenance.json`; repeated installation preserves configured
 thresholds and adds only missing roots. The service intentionally uses that fixed configuration
 path regardless of `XDG_CONFIG_HOME`. `XDG_CACHE_HOME` is honored for temporary verification
@@ -192,13 +192,20 @@ are required for scheduling. Installation is explicit, separate from the general
 
 The defaults remove Cargo-generated `target`, `.cargo-target`, and legacy `*-target`
 directories after seven inactive days, or after 24 quiet hours when a target exceeds 10 GiB.
-Below 50 GiB free, quiet outputs are cleaned oldest first until 75 GiB is available.
+Below 50 GiB free, outputs quiet for an hour (`pressureQuietHours`) are cleaned oldest first
+until 75 GiB is available. A target in constant use is bounded separately: above 40 GiB
+(`trimAboveBytes`) its oldest `deps` crate versions and `incremental` directories are evicted
+down to 30 GiB (`trimToBytes`) while holding Cargo's build locks; units written within
+`pressureQuietHours` stay. A trim is skipped during a build or while a process uses the
+target itself; a process that merely sits in the checkout does not block it. Set
+`warnFreeBytes` for a desktop notification when a run ends below that much free space.
 Only declared roots beneath the home directory are scanned. Cargo markers are required;
 source, Git state, tracked files, symlink boundaries and outputs used by live processes are
 preserved. Recent builds are kept. No cleanup runs through models, personal downloads,
 virtual environments, `node_modules`, Bun/T3 installations or application databases.
 
-The service runs supported `uv cache prune` and clears pip/npm caches when they exceed 1 GiB.
+Daily, or immediately below the free-space reserve, the service runs supported
+`uv cache prune` and clears pip/npm caches when they exceed 1 GiB.
 It pins each command to the inspected cache path and skips active package managers.
 It never edits uv cache entries directly. An unreadable unknown same-user process prevents
 deletion and reports unavailable safety evidence. Known root-owned service/credential
