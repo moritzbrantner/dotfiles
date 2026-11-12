@@ -139,13 +139,13 @@ ln -sfn "$PWD/skills/work-loop/workctl.mjs" ~/.local/share/coding-agent/workctl.
 ```
 
 Run the linked helper with `node ~/.local/share/coding-agent/workctl.mjs scan` for the global PR backlog (or `scan <repo>` for one repository) or `node ~/.local/share/coding-agent/workctl.mjs pr dotfiles#15` for one PR. `workctl issue dotfiles#15` prints an issue compactly: state, labels, blockers and closing PRs, then the body and comments, with `<details>` collapsed and minimized comments hidden. A body over 8,000 characters prints as a heading outline; `--section <heading>` prints a matching section, `--full` prints everything, and `--since <ISO time>` shows only newer comments.
-`workctl wait` is the sanctioned way to block on CI or a build instead of shell polling loops:
+`workctl wait` provides bounded waits outside runtimes with their own PR watches. In T3, the coordinator uses the host PR watch; do not also start a background `wait` or `land` for that PR. For other runtimes:
 `wait pr dotfiles#15` waits for the required checks (all checks if none are required),
 `wait run <repo> <run-id>` for a workflow run, `wait pid <pid>` for a process to exit and
 `wait file <path> [--contains <text>]` for a file. Each takes `--timeout <seconds>` (default
 3600), backs off between probes, prints one JSON line and exits 0 green/done, 1 red, 2 timeout.
 `workctl land dotfiles#15 [--clone <path>] [--cleanup-only] [--timeout <seconds>] [--wait-merged <seconds>]`
-is a worker's single last step after opening a PR. It waits for required checks like `wait pr`
+is an optional coordinator-owned integration operation outside T3. Workers return their PR and handle repairs; they do not start landing processes. Omit `--clone` for normal checkouts and runtime-managed worktrees. It waits for required checks like `wait pr`
 and exits 1 when they go red. On merge-queue repositories it enqueues the PR and confirms
 `isInMergeQueue`, retrying once through the `enqueuePullRequest` mutation. Where auto-merge is
 allowed it runs `gh pr merge --auto` with the merge method `selectMergeMethod` picks. Elsewhere it
@@ -166,6 +166,8 @@ a merge-queue repository also confirms that the PR entered the queue.
 The helper requires Node.js 22.18+ on the 22.x line or Node.js 24.2+ on newer lines for native
 ESM entry-point detection (`import.meta.main`). Symlink invocation needs no launcher. Importing
 the module keeps the exported helpers available without running the CLI.
+
+The [work-loop skill](skills/work-loop/SKILL.md#workers) defines bounded worker briefs, same-issue repair reuse and integration ownership. Its initial [ten-issue efficiency sample](skills/work-loop/references/efficiency.md) uses existing runtime records, with unavailable usage reported as unknown.
 
 ## VS Code
 
