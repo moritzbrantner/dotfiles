@@ -167,7 +167,7 @@ The helper requires Node.js 22.18+ on the 22.x line or Node.js 24.2+ on newer li
 ESM entry-point detection (`import.meta.main`). Symlink invocation needs no launcher. Importing
 the module keeps the exported helpers available without running the CLI.
 
-The [work-loop skill](skills/work-loop/SKILL.md#workers) defines bounded worker briefs, same-issue repair reuse and integration ownership. Its initial [ten-issue efficiency sample](skills/work-loop/references/efficiency.md) uses existing runtime records, with unavailable usage reported as unknown.
+The [work-loop skill](skills/work-loop/SKILL.md#workers) defines bounded worker briefs, same-issue repair reuse and integration ownership. Its initial [ten-issue efficiency sample](skills/work-loop/references/efficiency.md) uses existing runtime records, reporting only available metrics and noting missing telemetry at most once per loop run.
 
 ## VS Code
 
