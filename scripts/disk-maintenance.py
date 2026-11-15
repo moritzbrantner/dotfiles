@@ -159,7 +159,8 @@ def inventory(path):
             item = Path(parent) / name
             stat = item.lstat()
             if item.is_symlink():
-                raise ValueError(f"Symlink inside disposable directory: {item}")
+                # rmtree unlinks symlinks without following them, so they cannot widen deletion.
+                continue
             if name == ".git":
                 raise ValueError(f"Git source state inside disposable directory: {item}")
             newest = max(newest, stat.st_mtime)
@@ -281,7 +282,7 @@ def trim_output(path, size, locks, config, action, apply):
                 break
             if apply:
                 for item in items:
-                    shutil.rmtree(item) if item.is_dir() else item.unlink()
+                    shutil.rmtree(item) if item.is_dir() and not item.is_symlink() else item.unlink()
             freed += unit_size
     if freed:
         action.update(action="trim", reason="oversized output trimmed oldest first", freedBytes=freed)

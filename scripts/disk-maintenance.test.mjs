@@ -311,6 +311,21 @@ test("symlink targets and symlinked checkout ancestors never authorize deletion 
   assert.ok(existsSync(join(f.workspace, "linked-checkout")));
 });
 
+test("symlinks inside a stale target are unlinked without touching their destinations", (t) => {
+  const f = fixture(t);
+  const outside = join(f.home, "outside");
+  mkdirSync(outside);
+  writeFileSync(join(outside, "precious"), "preserve");
+  const target = cargoTarget(f, "unpacked-tools");
+  mkdirSync(join(target, "tmp", "usr", "bin"), { recursive: true });
+  symlinkSync(join(outside, "precious"), join(target, "tmp", "usr", "bin", "file-link"));
+  symlinkSync(outside, join(target, "tmp", "dir-link"));
+  ageTree(target, 10);
+  assert.ok(isRemoval(maintain(f, true), target));
+  assert.equal(existsSync(target), false);
+  assert.equal(readFileSync(join(outside, "precious"), "utf8"), "preserve");
+});
+
 test("Git tracked files inside Cargo-looking targets are preserved", (t) => {
   const f = fixture(t);
   const target = cargoTarget(f, "tracked");
